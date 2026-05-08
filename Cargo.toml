@@ -22,3 +22,5 @@ tree-sitter-python = "0.23"
 tree-sitter-typescript = "0.23"
 tree-sitter-java = "0.23"
 rusqlite = { version = "0.32", features = ["bundled"] }
+ratatui = "0.29"
+crossterm = "0.28"

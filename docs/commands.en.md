@@ -124,6 +124,30 @@ max_output_bytes = 20000
 allow = ["rg", "git status", "git diff", "git log", "git show"]
 ```
 
+## dumbcoder tui
+
+Enter interactive TUI mode.
+
+```bash
+dumbcoder tui
+```
+
+**Features**:
+- Multi-turn conversation: interactive chat with AI in the terminal
+- Code context: view referenced files and symbols
+- Keyboard navigation: full keyboard shortcut support
+
+**Key Bindings**:
+- `Enter` — Send message
+- `Tab` — Switch panel (chat / context)
+- `Esc` — Switch panel or quit
+- `Up/Down` — Scroll context panel
+- `PgUp/PgDn` — Page scroll
+- `Ctrl+C` — Quit
+- `Ctrl+L` — Clear chat
+
+See [TUI Guide](tui.en.md) for details.
+
 ## Coming Soon
 
 - `dumbcoder test` — Generate unit tests

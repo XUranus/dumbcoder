@@ -14,6 +14,7 @@ pub struct CodeContext {
     pub file_contents: Vec<FileContent>,
 }
 
+#[derive(Clone)]
 pub struct FileContent {
     pub path: String,
     pub content: String,

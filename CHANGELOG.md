@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.0] - 2026-05-08
+
+### Added
+
+- **`dumbcoder tui`**: 交互式 TUI 模式
+  - 多轮对话界面，左侧面板显示聊天记录
+  - 上下文面板，右侧面板显示引用文件和索引符号
+  - 输入栏，支持光标移动、编辑、发送
+  - 实时状态指示（Ready / Thinking / Error）
+  - 完整键盘快捷键支持
+- **TUI 模块架构**:
+  - `src/tui/mod.rs` — TUI 入口，终端初始化/恢复，事件循环
+  - `src/tui/app.rs` — 应用状态管理（消息、输入、滚动、面板切换）
+  - `src/tui/event.rs` — crossterm 事件处理
+  - `src/tui/ui.rs` — ratatui 渲染（标题栏、聊天面板、上下文面板、输入栏）
+  - `src/tui/action.rs` — 业务逻辑（ask/search/explain 执行）
+  - `src/cmd/tui.rs` — CLI 入口委托
+
+### Dependencies Added
+
+- `ratatui` 0.29 — 终端 UI 框架
+- `crossterm` 0.28 — 终端事件处理
+
+### Documentation
+
+- 新增 `docs/tui.zh.md` / `docs/tui.en.md` — TUI 使用指南（中英双语）
+- 更新 `docs/commands.zh.md` / `docs/commands.en.md` — 新增 dumbcoder tui 命令说明
+
 ## [0.2.0] - 2026-05-08
 
 ### Added

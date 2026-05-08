@@ -4,6 +4,7 @@ mod context;
 mod index;
 mod model;
 mod security;
+mod tui;
 mod util;
 
 use anyhow::Result;
@@ -72,7 +73,7 @@ enum Commands {
         /// Description of the fix
         description: String,
     },
-    /// Enter interactive TUI mode (coming soon)
+    /// Enter interactive TUI mode
     Tui,
 }
 
@@ -89,7 +90,7 @@ async fn main() -> Result<()> {
         Commands::Test { .. } => println!("Coming soon: dumbcoder test"),
         Commands::Review { .. } => println!("Coming soon: dumbcoder review"),
         Commands::Patch { .. } => println!("Coming soon: dumbcoder patch"),
-        Commands::Tui => println!("Coming soon: dumbcoder tui"),
+        Commands::Tui => cmd::tui::run().await?,
     }
 
     Ok(())

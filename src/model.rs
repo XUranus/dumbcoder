@@ -4,6 +4,7 @@ use serde_json::json;
 
 use crate::config::ModelConfig;
 
+#[derive(Clone)]
 pub struct ModelClient {
     base_url: String,
     model: String,

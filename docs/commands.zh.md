@@ -124,6 +124,30 @@ max_output_bytes = 20000
 allow = ["rg", "git status", "git diff", "git log", "git show"]
 ```
 
+## dumbcoder tui
+
+进入交互式 TUI 模式。
+
+```bash
+dumbcoder tui
+```
+
+**功能**:
+- 多轮对话：在终端中与 AI 进行交互式对话
+- 代码上下文：查看 AI 引用的文件和符号
+- 键盘操作：完整键盘快捷键支持
+
+**快捷键**:
+- `Enter` — 发送消息
+- `Tab` — 切换面板（聊天 / 上下文）
+- `Esc` — 切换面板或退出
+- `Up/Down` — 滚动上下文面板
+- `PgUp/PgDn` — 翻页滚动
+- `Ctrl+C` — 退出
+- `Ctrl+L` — 清空对话
+
+详见 [TUI 使用指南](tui.zh.md)。
+
 ## 即将推出
 
 - `dumbcoder test` — 生成单元测试
