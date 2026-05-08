@@ -1,3 +1,4 @@
+mod audit;
 mod cmd;
 mod config;
 mod context;
@@ -69,7 +70,7 @@ enum Commands {
         #[arg(long)]
         diff: Option<String>,
     },
-    /// Generate controlled code patch (coming soon)
+    /// Generate controlled code patch
     Patch {
         /// Description of the fix
         description: String,
@@ -90,7 +91,7 @@ async fn main() -> Result<()> {
         Commands::Index { full, changed } => cmd::index::run(full, changed)?,
         Commands::Test { path, symbol } => cmd::test::run(&path, symbol.as_deref()).await?,
         Commands::Review { staged, diff } => cmd::review::run(staged, diff.as_deref()).await?,
-        Commands::Patch { .. } => println!("Coming soon: dumbcoder patch"),
+        Commands::Patch { description } => cmd::patch::run(&description).await?,
         Commands::Tui => cmd::tui::run().await?,
     }
 

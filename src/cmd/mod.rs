@@ -4,5 +4,6 @@ pub mod index;
 pub mod init;
 pub mod review;
 pub mod search;
+pub mod patch;
 pub mod test;
 pub mod tui;

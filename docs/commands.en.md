@@ -190,6 +190,31 @@ dumbcoder review --diff main...HEAD  # Review branch diff
   - Issues found (potential bugs, edge cases, logic errors)
   - Suggestions (test coverage, security concerns)
 
-## Coming Soon
+## dumbcoder patch
 
-- `dumbcoder patch` — Generate controlled code patches
+Generate a controlled code patch from a natural language description.
+
+```bash
+dumbcoder patch "fix error handling in order cancellation"
+dumbcoder patch "add input validation to user registration"
+```
+
+**Flow**:
+1. Extract keywords from description
+2. Search for relevant code (ripgrep + index)
+3. Build code context
+4. Send to model to generate a unified diff
+5. Validate diff with `git apply --check`
+6. Display the generated patch
+7. Prompt for user confirmation
+8. Apply the patch with `git apply`
+9. Run tests (auto-detected)
+10. Rollback if tests fail
+11. Log to `.dumbcoder/logs/` as an audit entry
+
+**Safety**:
+- Diff is validated before applying (`git apply --check`)
+- User must confirm before the patch is applied
+- Tests are automatically run after applying
+- Patch is rolled back if tests fail
+- All actions are audit-logged

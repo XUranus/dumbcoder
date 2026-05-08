@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.0] - 2026-05-08
+
+### Added
+
+- **`dumbcoder patch`**: 受控代码修改补丁生成
+  - 根据自然语言描述搜索相关代码、生成 unified diff
+  - `git apply --check` 验证补丁可应用性
+  - 用户确认后才实际应用补丁
+  - 应用后自动运行测试（自动检测测试命令）
+  - 测试失败时自动回滚（`git apply --reverse`）
+  - 所有操作写入 `.dumbcoder/logs/` 审计日志（JSON 格式）
+- **`src/audit.rs`**: 审计日志模块
+  - `AuditEntry` 结构体：记录时间戳、命令、描述、读取文件、生成的 diff、应用结果、测试结果、错误信息
+  - `log_entry()` 函数：将审计条目序列化为 JSON 写入 `.dumbcoder/logs/`
+
+### Documentation
+
+- 更新 `docs/commands.zh.md` — 新增 dumbcoder patch 命令说明
+- 更新 `docs/commands.en.md` — Added dumbcoder patch command docs
+
 ## [0.4.0] - 2026-05-08
 
 ### Added
