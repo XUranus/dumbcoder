@@ -148,9 +148,48 @@ dumbcoder tui
 
 See [TUI Guide](tui.en.md) for details.
 
+## dumbcoder test
+
+Generate unit tests for a file or function.
+
+```bash
+dumbcoder test src/order/service.rs
+dumbcoder test src/order/service.rs --symbol cancel_order
+```
+
+**Parameters**:
+- `--symbol` — Specify the function or class to generate tests for
+
+**Features**:
+- Analyzes the target function's inputs, outputs, and logic
+- Auto-detects project test framework (cargo test, pytest, go test, npm test, etc.)
+- Finds existing test files as style references
+- Generates tests covering normal, edge, and error cases
+- Outputs ready-to-use test code
+
+## dumbcoder review
+
+Review git diff and provide a structured code review report.
+
+```bash
+dumbcoder review              # Review unstaged changes
+dumbcoder review --staged     # Review staged changes
+dumbcoder review --diff main...HEAD  # Review branch diff
+```
+
+**Parameters**:
+- `--staged` — Review staged changes (git diff --cached)
+- `--diff` — Specify diff range
+
+**Features**:
+- Reads git diff
+- Analyzes changed files and code
+- Combines symbol context from the index
+- Outputs a structured review report including:
+  - Risk level per file (Low/Medium/High)
+  - Issues found (potential bugs, edge cases, logic errors)
+  - Suggestions (test coverage, security concerns)
+
 ## Coming Soon
 
-- `dumbcoder test` — Generate unit tests
-- `dumbcoder review` — Review Git diffs
 - `dumbcoder patch` — Generate controlled code patches
-- `dumbcoder tui` — Interactive TUI mode

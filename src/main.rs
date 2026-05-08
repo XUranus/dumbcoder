@@ -1,6 +1,7 @@
 mod cmd;
 mod config;
 mod context;
+mod git;
 mod index;
 mod model;
 mod security;
@@ -51,7 +52,7 @@ enum Commands {
         #[arg(long)]
         changed: bool,
     },
-    /// Generate or supplement unit tests (coming soon)
+    /// Generate or supplement unit tests
     Test {
         /// File path
         path: String,
@@ -59,7 +60,7 @@ enum Commands {
         #[arg(long)]
         symbol: Option<String>,
     },
-    /// Review git diff (coming soon)
+    /// Review git diff
     Review {
         /// Review staged changes
         #[arg(long)]
@@ -87,8 +88,8 @@ async fn main() -> Result<()> {
         Commands::Explain { path, symbol } => cmd::explain::run(&path, symbol.as_deref()).await?,
         Commands::Search { query, lang } => cmd::search::run(&query, lang.as_deref())?,
         Commands::Index { full, changed } => cmd::index::run(full, changed)?,
-        Commands::Test { .. } => println!("Coming soon: dumbcoder test"),
-        Commands::Review { .. } => println!("Coming soon: dumbcoder review"),
+        Commands::Test { path, symbol } => cmd::test::run(&path, symbol.as_deref()).await?,
+        Commands::Review { staged, diff } => cmd::review::run(staged, diff.as_deref()).await?,
         Commands::Patch { .. } => println!("Coming soon: dumbcoder patch"),
         Commands::Tui => cmd::tui::run().await?,
     }

@@ -148,9 +148,48 @@ dumbcoder tui
 
 详见 [TUI 使用指南](tui.zh.md)。
 
+## dumbcoder test
+
+为指定文件或函数生成单元测试。
+
+```bash
+dumbcoder test src/order/service.rs
+dumbcoder test src/order/service.rs --symbol cancel_order
+```
+
+**参数**:
+- `--symbol` — 指定要生成测试的函数或类名
+
+**功能**:
+- 分析目标函数的输入输出和逻辑
+- 自动检测项目测试框架（cargo test、pytest、go test、npm test 等）
+- 查找已有测试文件作为风格参考
+- 生成覆盖正常、边界和错误情况的测试用例
+- 输出可直接使用的测试代码
+
+## dumbcoder review
+
+审查 Git diff，提供结构化代码审查报告。
+
+```bash
+dumbcoder review              # 审查未暂存的修改
+dumbcoder review --staged     # 审查已暂存的修改
+dumbcoder review --diff main...HEAD  # 审查分支差异
+```
+
+**参数**:
+- `--staged` — 审查已暂存的修改（git diff --cached）
+- `--diff` — 指定 diff 范围
+
+**功能**:
+- 读取 git diff
+- 分析变更的文件和代码
+- 结合索引中的符号信息提供上下文
+- 输出结构化审查报告，包含：
+  - 每个文件的风险等级（低/中/高）
+  - 发现的问题（潜在 bug、边界情况、逻辑错误）
+  - 改进建议（测试覆盖、安全考量）
+
 ## 即将推出
 
-- `dumbcoder test` — 生成单元测试
-- `dumbcoder review` — 审查 Git diff
 - `dumbcoder patch` — 生成受控代码修改
-- `dumbcoder tui` — 交互式 TUI

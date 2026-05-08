@@ -1,8 +1,32 @@
 # Changelog
 
-## [0.3.0] - 2026-05-08
+## [0.4.0] - 2026-05-08
 
 ### Added
+
+- **`dumbcoder test`**: 单元测试生成
+  - 为指定文件或函数生成全面的单元测试
+  - 支持 `--symbol` 参数精确定位目标函数
+  - 自动检测项目测试框架（cargo test、pytest、go test、npm test、mvn test、gradle test）
+  - 查找已有测试文件作为风格参考
+  - 使用索引精确定位符号代码范围
+  - 覆盖正常、边界和错误情况
+- **`dumbcoder review`**: Git diff 审查
+  - 审查未暂存修改（默认）、已暂存修改（`--staged`）、指定范围（`--diff`）
+  - 解析 diff 文件列表
+  - 结合索引符号信息提供上下文
+  - 输出结构化审查报告（风险等级、问题列表、改进建议）
+- **`src/git.rs`**: Git 工具模块
+  - `get_staged_diff` / `get_diff_range` / `get_unstaged_diff`
+  - `detect_test_command` — 自动检测项目测试命令
+  - `parse_changed_files` — 从 diff 中提取变更文件列表
+
+### Documentation
+
+- 更新 `docs/commands.zh.md` — 新增 dumbcoder test/review 命令说明
+- 更新 `docs/commands.en.md` — Added dumbcoder test/review command docs
+
+## [0.3.0] - 2026-05-08
 
 - **`dumbcoder tui`**: 交互式 TUI 模式
   - 多轮对话界面，左侧面板显示聊天记录
