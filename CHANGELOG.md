@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.2.0] - 2026-05-08
+
+### Added
+
+- **`dumbcoder index`**: 代码索引命令，支持 `--full`（全量）和 `--changed`（增量）模式
+- **tree-sitter AST 解析**: 支持 Rust、Go、Python、TypeScript、Java 五种语言的 AST 解析
+- **符号提取**: 从 AST 中提取函数、结构体、类、枚举、trait、impl、import 等符号
+- **SQLite 索引存储**: 使用 rusqlite (bundled) 将符号存储到 `.dumbcoder/index/symbols.db`
+- **增量索引**: 通过 git diff 检测变更文件，仅重新索引变更的文件
+- **智能上下文增强**: `dumbcoder ask` 和 `dumbcoder explain` 自动使用索引结果提供精确的符号级上下文
+- **`dumbcoder ask` 增强**: 合并 ripgrep 搜索结果 + 索引符号结果作为上下文
+- **`dumbcoder explain --symbol` 增强**: 使用索引精确定位符号行范围，替代原有的 brace-depth 启发式方法
+
+### Dependencies Added
+
+- `tree-sitter` 0.24 — 核心解析器
+- `tree-sitter-rust` 0.23 — Rust 语法
+- `tree-sitter-go` 0.23 — Go 语法
+- `tree-sitter-python` 0.23 — Python 语法
+- `tree-sitter-typescript` 0.23 — TypeScript 语法
+- `tree-sitter-java` 0.23 — Java 语法
+- `rusqlite` 0.32 (bundled) — SQLite 数据库
+
+### Documentation
+
+- 更新 `docs/commands.zh.md` — 新增 `dumbcoder index` 命令说明
+- 更新 `docs/commands.en.md` — Added `dumbcoder index` command documentation
+
 ## [0.1.0] - 2026-05-08
 
 ### Added

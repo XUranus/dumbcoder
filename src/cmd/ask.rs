@@ -1,8 +1,9 @@
 use anyhow::Result;
 use std::process::Command;
 
-use crate::config::Config;
+use crate::config::{Config, DUMBCODER_DIR};
 use crate::context::CodeContext;
+use crate::index::IndexStore;
 use crate::model::ModelClient;
 use crate::security::SecurityFilter;
 use crate::util;
@@ -37,8 +38,23 @@ pub async fn run(question: &str) -> Result<()> {
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .unwrap_or_default();
 
-    // Step 2: Build context
-    let context = CodeContext::from_search_results(&rg_output, &root, &security, 10, 200)?;
+    // Step 2: Build context from rg search
+    let mut context = CodeContext::from_search_results(&rg_output, &root, &security, 10, 200)?;
+
+    // Step 2b: Query the index for matching symbols
+    let db_path = root.join(DUMBCODER_DIR).join("index").join("symbols.db");
+    if db_path.exists() {
+        if let Ok(store) = IndexStore::open(&db_path) {
+            if let Ok(symbols) = store.search_symbols(&search_query, 10) {
+                if !symbols.is_empty() {
+                    if let Ok(symbol_ctx) = CodeContext::from_symbols(&symbols, &root, &security, 4000) {
+                        context.merge(symbol_ctx);
+                    }
+                }
+            }
+        }
+    }
+
     let context_text = context.format_for_prompt(8000);
 
     util::header("Asking model");

@@ -68,6 +68,37 @@ dumbcoder search "cancel order" --lang rust
 - Security filtering
 - Outputs file paths and line numbers
 
+## dumbcoder index
+
+Build or update code index. Uses tree-sitter to parse ASTs, extract symbols (functions, structs, classes, etc.), and store them in a local SQLite database.
+
+```bash
+dumbcoder index            # Incremental index (changed files only)
+dumbcoder index --full     # Full re-index of all files
+dumbcoder index --changed  # Incremental index (same as default)
+```
+
+**Features**:
+- Scans project source files (Rust, Go, Python, TypeScript, Java)
+- Parses ASTs with tree-sitter
+- Extracts functions, structs, classes, enums, traits, impls, imports
+- Stores in `.dumbcoder/index/symbols.db` (SQLite)
+- Supports incremental indexing (detects changed files via git diff)
+- Supports full re-indexing
+
+**Index Database**:
+- Auto-creates `.dumbcoder/index/symbols.db`
+- Contains `files` and `symbols` tables
+- Supports fuzzy symbol name search
+- `ask` and `explain` commands automatically use index results
+
+**Supported Languages**:
+- Rust (`.rs`)
+- Go (`.go`)
+- Python (`.py`)
+- TypeScript/TSX (`.ts`, `.tsx`)
+- Java (`.java`)
+
 ## Configuration
 
 Configuration file at `.dumbcoder/config.toml`:

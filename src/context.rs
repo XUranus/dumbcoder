@@ -1,3 +1,4 @@
+use crate::index::SymbolInfo;
 use crate::security::SecurityFilter;
 use anyhow::Result;
 use std::path::Path;
@@ -65,6 +66,12 @@ impl CodeContext {
         })
     }
 
+    /// Merge another CodeContext into this one.
+    pub fn merge(&mut self, other: CodeContext) {
+        self.matches.extend(other.matches);
+        self.file_contents.extend(other.file_contents);
+    }
+
     /// Format context for inclusion in a model prompt.
     pub fn format_for_prompt(&self, max_chars: usize) -> String {
         let mut result = String::new();
@@ -80,6 +87,57 @@ impl CodeContext {
         }
 
         result
+    }
+
+    /// Build context from index symbols — extracts precise code ranges.
+    pub fn from_symbols(
+        symbols: &[SymbolInfo],
+        project_root: &Path,
+        security: &SecurityFilter,
+        max_chars: usize,
+    ) -> Result<Self> {
+        let mut file_contents = Vec::new();
+        let mut seen_files = std::collections::HashSet::new();
+        let mut total = 0;
+
+        for sym in symbols {
+            let abs_path = project_root.join(&sym.path);
+            if !security.is_path_allowed(&abs_path, project_root) {
+                continue;
+            }
+
+            let content = if seen_files.insert(sym.path.clone()) {
+                read_symbol_range(&abs_path, sym.start_line, sym.end_line)
+            } else {
+                // Already included this file — still include the symbol range
+                read_symbol_range(&abs_path, sym.start_line, sym.end_line)
+            };
+
+            let block = format!(
+                "=== {} ({} {}) lines {}-{} ===\n{}\n",
+                sym.path,
+                sym.kind.as_str(),
+                sym.name,
+                sym.start_line,
+                sym.end_line,
+                content
+            );
+
+            if total + block.len() > max_chars {
+                break;
+            }
+            total += block.len();
+
+            file_contents.push(FileContent {
+                path: sym.path.clone(),
+                content: block,
+            });
+        }
+
+        Ok(Self {
+            matches: Vec::new(),
+            file_contents,
+        })
     }
 }
 
@@ -98,4 +156,19 @@ fn parse_rg_line(line: &str) -> Option<SearchMatch> {
         line_number,
         line: content,
     })
+}
+
+/// Read a specific line range from a file (1-indexed, inclusive).
+fn read_symbol_range(path: &Path, start_line: usize, end_line: usize) -> String {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return String::new(),
+    };
+    let lines: Vec<&str> = content.lines().collect();
+    let start = if start_line > 0 { start_line - 1 } else { 0 };
+    let end = std::cmp::min(end_line, lines.len());
+    if start >= lines.len() {
+        return String::new();
+    }
+    lines[start..end].join("\n")
 }

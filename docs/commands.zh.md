@@ -68,6 +68,37 @@ dumbcoder search "cancel order" --lang rust
 - 安全过滤
 - 输出文件路径和行号
 
+## dumbcoder index
+
+构建或更新代码索引。使用 tree-sitter 解析 AST，提取函数、结构体、类等符号，存储到本地 SQLite 数据库。
+
+```bash
+dumbcoder index            # 增量索引（仅变更文件）
+dumbcoder index --full     # 全量索引
+dumbcoder index --changed  # 增量索引（同默认）
+```
+
+**功能**:
+- 扫描项目源文件（Rust、Go、Python、TypeScript、Java）
+- 使用 tree-sitter 进行 AST 解析
+- 提取函数、结构体、类、枚举、trait、impl、import 等符号
+- 存储到 `.dumbcoder/index/symbols.db`（SQLite）
+- 支持增量索引（通过 git diff 检测变更文件）
+- 支持全量重新索引
+
+**索引数据库**:
+- 自动创建 `.dumbcoder/index/symbols.db`
+- 包含 `files` 表和 `symbols` 表
+- 支持按名称模糊搜索符号
+- `ask` 和 `explain` 命令自动使用索引结果
+
+**支持的语言**:
+- Rust (`.rs`)
+- Go (`.go`)
+- Python (`.py`)
+- TypeScript/TSX (`.ts`, `.tsx`)
+- Java (`.java`)
+
 ## 配置文件
 
 配置文件位于 `.dumbcoder/config.toml`：

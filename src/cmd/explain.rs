@@ -1,7 +1,8 @@
 use anyhow::{bail, Result};
 use std::path::Path;
 
-use crate::config::Config;
+use crate::config::{Config, DUMBCODER_DIR};
+use crate::index::IndexStore;
 use crate::model::ModelClient;
 use crate::security::SecurityFilter;
 use crate::util;
@@ -42,7 +43,34 @@ pub async fn run(path: &str, symbol: Option<&str>) -> Result<()> {
     }
 
     let code_to_explain = if let Some(sym) = symbol {
-        extract_symbol_code(&content, sym)
+        // Try index first for precise extraction
+        let db_path = root.join(DUMBCODER_DIR).join("index").join("symbols.db");
+        let rel_path = full_path
+            .strip_prefix(&root)
+            .unwrap_or(&full_path)
+            .to_string_lossy()
+            .to_string();
+
+        if let Ok(store) = IndexStore::open(&db_path) {
+            if let Ok(Some(symbol_info)) = store.get_symbol(&rel_path, sym) {
+                let lines: Vec<&str> = content.lines().collect();
+                let start = if symbol_info.start_line > 0 {
+                    symbol_info.start_line - 1
+                } else {
+                    0
+                };
+                let end = std::cmp::min(symbol_info.end_line, lines.len());
+                if start < lines.len() {
+                    lines[start..end].join("\n")
+                } else {
+                    extract_symbol_code(&content, sym)
+                }
+            } else {
+                extract_symbol_code(&content, sym)
+            }
+        } else {
+            extract_symbol_code(&content, sym)
+        }
     } else {
         // If file is too large, take first 300 lines
         let lines: Vec<&str> = content.lines().collect();

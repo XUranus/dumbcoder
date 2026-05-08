@@ -1,6 +1,7 @@
 mod cmd;
 mod config;
 mod context;
+mod index;
 mod model;
 mod security;
 mod util;
@@ -40,6 +41,15 @@ enum Commands {
         #[arg(long)]
         lang: Option<String>,
     },
+    /// Build or update code index
+    Index {
+        /// Full re-index of all files
+        #[arg(long)]
+        full: bool,
+        /// Incremental index (changed files only)
+        #[arg(long)]
+        changed: bool,
+    },
     /// Generate or supplement unit tests (coming soon)
     Test {
         /// File path
@@ -75,6 +85,7 @@ async fn main() -> Result<()> {
         Commands::Ask { question } => cmd::ask::run(&question).await?,
         Commands::Explain { path, symbol } => cmd::explain::run(&path, symbol.as_deref()).await?,
         Commands::Search { query, lang } => cmd::search::run(&query, lang.as_deref())?,
+        Commands::Index { full, changed } => cmd::index::run(full, changed)?,
         Commands::Test { .. } => println!("Coming soon: dumbcoder test"),
         Commands::Review { .. } => println!("Coming soon: dumbcoder review"),
         Commands::Patch { .. } => println!("Coming soon: dumbcoder patch"),
