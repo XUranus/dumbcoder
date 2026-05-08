@@ -1,0 +1,6 @@
+/target
+.dumbcoder/index/
+.dumbcoder/logs/
+*.swp
+*.swo
+*~

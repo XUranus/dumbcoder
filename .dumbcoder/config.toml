@@ -1,0 +1,30 @@
+[model]
+provider = "ollama"
+base_url = "http://127.0.0.1:11434"
+model = "qwen2.5-coder:7b"
+
+[index]
+enabled = true
+db_path = ".dumbcoder/index"
+ignore = [
+    ".git",
+    "target",
+    "node_modules",
+    "dist",
+    "build",
+]
+
+[security]
+allow_write = false
+allow_network = false
+max_command_seconds = 60
+max_output_bytes = 20000
+
+[commands]
+allow = [
+    "rg",
+    "git status",
+    "git diff",
+    "git log",
+    "git show",
+]
