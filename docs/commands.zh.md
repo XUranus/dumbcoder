@@ -158,6 +158,27 @@ model = "Qwen/Qwen2.5-Coder-32B-Instruct"
 timeout_seconds = 300
 ```
 
+**Provider Pool**（多 API Key 负载均衡）：
+
+```toml
+[model]
+provider = "openai_compatible"
+model = "Qwen/Qwen3-8B"
+context_limit = 4000
+
+[[model.providers]]
+base_url = "https://api.siliconflow.com"
+api_key = "sk-key-1"
+model = "Qwen/Qwen3-8B"
+
+[[model.providers]]
+base_url = "https://api.siliconflow.com"
+api_key = "sk-key-2"
+model = "Qwen/Qwen3-8B"
+```
+
+配置 `[[model.providers]]` 后，请求通过 round-robin 轮询分发到不同的 Provider。如果某个 Provider 失败，会自动故障转移到下一个 Provider。每个条目可覆盖 `base_url`、`api_key`、`model`，未设置的字段继承 `[model]` 顶层配置。
+
 ## dumbcoder tui
 
 进入交互式 TUI 模式。

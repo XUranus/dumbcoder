@@ -158,6 +158,27 @@ model = "Qwen/Qwen2.5-Coder-32B-Instruct"
 timeout_seconds = 300
 ```
 
+**Provider Pool** (load balancing across multiple API keys):
+
+```toml
+[model]
+provider = "openai_compatible"
+model = "Qwen/Qwen3-8B"
+context_limit = 4000
+
+[[model.providers]]
+base_url = "https://api.siliconflow.com"
+api_key = "sk-key-1"
+model = "Qwen/Qwen3-8B"
+
+[[model.providers]]
+base_url = "https://api.siliconflow.com"
+api_key = "sk-key-2"
+model = "Qwen/Qwen3-8B"
+```
+
+When `[[model.providers]]` entries are configured, requests are distributed via round-robin across the pool. If one provider fails, the request automatically falls back to the next provider. Each entry can override `base_url`, `api_key`, and `model` — unset fields inherit from `[model]`.
+
 ## dumbcoder tui
 
 Enter interactive TUI mode.

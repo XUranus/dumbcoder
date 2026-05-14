@@ -34,6 +34,15 @@ pub struct ModelConfig {
     pub timeout_seconds: Option<u64>,
     #[serde(default = "default_context_limit")]
     pub context_limit: usize,
+    #[serde(default)]
+    pub providers: Vec<ProviderEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderEntry {
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +94,7 @@ impl Default for ModelConfig {
             api_key: None,
             timeout_seconds: None,
             context_limit: default_context_limit(),
+            providers: Vec::new(),
         }
     }
 }

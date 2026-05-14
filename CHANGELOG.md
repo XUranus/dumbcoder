@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.10.0] - 2026-05-14
+
+### Added
+
+- **LLM Provider Pool**: 多 Provider 负载均衡配置
+  - `[[model.providers]]` 配置多个 API 端点
+  - Round-robin 轮询分发请求到不同 API key
+  - 跨 Provider 故障转移：一个 Provider 失败自动尝试下一个
+  - 向后兼容：无 `providers` 配置时使用单 Provider 模式
+  - 每个 Provider 条目可独立设置 `base_url`、`api_key`、`model`
+  - 未设置的字段继承 `[model]` 顶层配置
+
+### Provider Pool Config
+
+```toml
+[model]
+provider = "openai_compatible"
+model = "Qwen/Qwen3-8B"
+
+[[model.providers]]
+base_url = "https://api.siliconflow.com"
+api_key = "sk-key1"
+
+[[model.providers]]
+base_url = "https://api.siliconflow.com"
+api_key = "sk-key2"
+```
+
 ## [0.9.0] - 2026-05-14
 
 ### Fixed / Improved

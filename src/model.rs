@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::config::ModelConfig;
 
@@ -14,13 +15,23 @@ enum Provider {
     OpenAiCompatible,
 }
 
+/// A single provider endpoint (one base_url + api_key + model).
 #[derive(Clone)]
-pub struct ModelClient {
+struct ModelClientInner {
     provider: Provider,
     base_url: String,
     model: String,
     api_key: Option<String>,
     client: reqwest::Client,
+}
+
+/// Model client with optional provider pool for load balancing.
+/// When multiple providers are configured, requests are distributed
+/// via round-robin across the pool.
+#[derive(Clone)]
+pub struct ModelClient {
+    pool: Vec<ModelClientInner>,
+    next: std::sync::Arc<AtomicUsize>,
 }
 
 // --- Ollama response types ---
@@ -78,31 +89,28 @@ pub struct ChatMessage {
     pub content: String,
 }
 
-impl ModelClient {
-    pub fn new(config: &ModelConfig) -> Result<Self> {
-        config.validate()?;
-
+impl ModelClientInner {
+    fn from_config(config: &ModelConfig, base_url: &str, api_key: &Option<String>, model: &str) -> Self {
         let provider = match config.provider.as_str() {
             "openai" => Provider::OpenAi,
             "openai_compatible" => Provider::OpenAiCompatible,
             _ => Provider::Ollama,
         };
-
         let timeout = config.timeout_seconds.unwrap_or(120);
 
-        Ok(Self {
+        Self {
             provider,
-            base_url: config.base_url.trim_end_matches('/').to_string(),
-            model: config.model.clone(),
-            api_key: config.api_key.clone(),
+            base_url: base_url.trim_end_matches('/').to_string(),
+            model: model.to_string(),
+            api_key: api_key.clone(),
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(timeout))
                 .build()
                 .expect("Failed to create HTTP client"),
-        })
+        }
     }
 
-    pub async fn generate(&self, system: &str, prompt: &str) -> Result<String> {
+    async fn generate(&self, system: &str, prompt: &str) -> Result<String> {
         match self.provider {
             Provider::Ollama => self.generate_ollama(system, prompt).await,
             Provider::OpenAi | Provider::OpenAiCompatible => {
@@ -111,7 +119,6 @@ impl ModelClient {
         }
     }
 
-    /// Check if an HTTP status is retryable (rate limit or server error).
     fn is_retryable_status(status: reqwest::StatusCode) -> bool {
         status == 429 || status.is_server_error()
     }
@@ -122,7 +129,7 @@ impl ModelClient {
         match self.call_ollama_chat(system, prompt).await {
             Ok(response) => Ok(response),
             Err(e) => {
-                eprintln!("Ollama chat API failed: {e}, trying generate API...");
+                eprintln!("  Ollama chat API failed: {e}, trying generate API...");
                 self.call_ollama_generate(system, prompt).await
             }
         }
@@ -276,5 +283,79 @@ impl ModelClient {
             }
         }
         bail!("Max retries exceeded for OpenAI-compatible API")
+    }
+}
+
+impl ModelClient {
+    pub fn new(config: &ModelConfig) -> Result<Self> {
+        config.validate()?;
+
+        let pool: Vec<ModelClientInner> = if config.providers.is_empty() {
+            // Single provider mode (backward compatible)
+            vec![ModelClientInner::from_config(
+                config,
+                &config.base_url,
+                &config.api_key,
+                &config.model,
+            )]
+        } else {
+            // Provider pool mode
+            config
+                .providers
+                .iter()
+                .map(|entry| {
+                    let base_url = entry
+                        .base_url
+                        .as_deref()
+                        .unwrap_or(&config.base_url);
+                    let api_key = entry.api_key.as_ref().or(config.api_key.as_ref());
+                    let model = entry
+                        .model
+                        .as_deref()
+                        .unwrap_or(&config.model);
+                    ModelClientInner::from_config(config, base_url, &api_key.cloned(), model)
+                })
+                .collect()
+        };
+
+        if pool.is_empty() {
+            bail!("No providers configured");
+        }
+
+        eprintln!("  Provider pool: {} endpoint(s)", pool.len());
+
+        Ok(Self {
+            pool,
+            next: std::sync::Arc::new(AtomicUsize::new(0)),
+        })
+    }
+
+    /// Generate with round-robin load balancing and cross-provider fallback.
+    pub async fn generate(&self, system: &str, prompt: &str) -> Result<String> {
+        let pool_size = self.pool.len();
+        let start = self.next.fetch_add(1, Ordering::Relaxed) % pool_size;
+
+        let mut last_err = None;
+
+        for i in 0..pool_size {
+            let idx = (start + i) % pool_size;
+            let inner = &self.pool[idx];
+
+            if pool_size > 1 {
+                eprintln!("  Using provider [{}/{}]: {}", idx + 1, pool_size, inner.base_url);
+            }
+
+            match inner.generate(system, prompt).await {
+                Ok(result) => return Ok(result),
+                Err(e) => {
+                    eprintln!("  Provider {} failed: {e}", inner.base_url);
+                    last_err = Some(e);
+                    // Try next provider in pool
+                    continue;
+                }
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| anyhow::anyhow!("All providers failed")))
     }
 }
