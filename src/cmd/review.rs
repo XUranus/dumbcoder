@@ -6,10 +6,11 @@ use crate::context::CodeContext;
 use crate::git;
 use crate::index::IndexStore;
 use crate::model::ModelClient;
+use crate::plugin;
 use crate::security::SecurityFilter;
 use crate::util;
 
-const SYSTEM_PROMPT: &str = r#"You are a senior code reviewer. Analyze the following git diff and provide a structured review.
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a senior code reviewer. Analyze the following git diff and provide a structured review.
 
 For each changed file, provide:
 1. **Risk level**: Low / Medium / High
@@ -93,7 +94,8 @@ pub async fn run(staged: bool, diff: Option<&str>) -> Result<()> {
     }
 
     let client = ModelClient::new(&config.model)?;
-    let review = client.generate(SYSTEM_PROMPT, &user_prompt).await?;
+    let system_prompt = plugin::resolve_prompt(&config, "review", DEFAULT_SYSTEM_PROMPT);
+    let review = client.generate(&system_prompt, &user_prompt).await?;
 
     util::header("Review");
     println!("{review}");

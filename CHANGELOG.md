@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.8.0] - 2026-05-08
+
+### Added
+
+- **插件系统**: 自定义命令和 prompt 模板
+  - `.dumbcoder/plugins/*.toml` — 每个文件定义一个自定义命令
+  - `dumbcoder run <name> <query>` — 执行插件命令
+  - 插件定义 `name`、`description`、`system_prompt` 字段
+  - 执行流程：关键词提取 → ripgrep 搜索 + 索引 → 上下文组装 → 调用模型
+- **Prompt 模板覆盖**: `config.toml` 中的 `[prompts]` 节
+  - 可覆盖内置命令的 system prompt（ask、explain、review、test、patch）
+  - 示例：`[prompts]\nask = "你的自定义 prompt..."`
+  - 未配置时使用内置默认 prompt
+
+### Documentation
+
+- 更新 `docs/commands.zh.md` — 新增 dumbcoder run 和插件系统说明
+- 更新 `docs/commands.en.md` — Added dumbcoder run and plugin system docs
+
 ## [0.7.0] - 2026-05-08
 
 ### Added

@@ -45,7 +45,7 @@ pub async fn run() -> Result<()> {
     let mut app = App::new();
     let events = EventHandler::new(Duration::from_millis(50));
 
-    let result = run_loop(&mut terminal, &mut app, &events, &client, &root, &security, store).await;
+    let result = run_loop(&mut terminal, &mut app, &events, &config, &client, &root, &security, store).await;
 
     // Restore terminal
     disable_raw_mode()?;
@@ -63,6 +63,7 @@ async fn run_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
     events: &EventHandler,
+    config: &Config,
     client: &ModelClient,
     root: &std::path::Path,
     security: &SecurityFilter,
@@ -75,7 +76,7 @@ async fn run_loop(
             AppEvent::Tick => {}
             AppEvent::Key(key) => {
                 let action = app.handle_key_event(key);
-                action::execute(action, app, client, root, security, &store).await;
+                action::execute(action, app, config, client, root, security, &store).await;
             }
             AppEvent::ModelResult(result) => {
                 app.receive_model_response(result);

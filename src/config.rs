@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 pub const DUMBCODER_DIR: &str = ".dumbcoder";
@@ -15,6 +16,8 @@ pub struct Config {
     pub security: SecurityConfig,
     #[serde(default)]
     pub commands: CommandsConfig,
+    #[serde(default)]
+    pub prompts: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +69,7 @@ impl Default for Config {
             index: IndexConfig::default(),
             security: SecurityConfig::default(),
             commands: CommandsConfig::default(),
+            prompts: HashMap::new(),
         }
     }
 }

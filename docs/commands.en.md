@@ -252,3 +252,44 @@ dumbcoder patch "add input validation to user registration"
 - Tests are automatically run after applying
 - Patch is rolled back if tests fail
 - All actions are audit-logged
+
+## dumbcoder run
+
+Run a plugin command defined in `.dumbcoder/plugins/*.toml`.
+
+```bash
+dumbcoder run security-audit "audit the authentication module"
+dumbcoder run doc-gen "generate docs for the order service"
+```
+
+**Plugin File Format** (`.dumbcoder/plugins/<name>.toml`):
+
+```toml
+name = "security-audit"
+description = "Audit code for security vulnerabilities"
+system_prompt = """
+You are a security auditor. Analyze the code context for security vulnerabilities.
+Focus on: SQL injection, XSS, path traversal, authentication bypass, secrets in code.
+Output a structured report with severity levels (Critical/High/Medium/Low).
+"""
+```
+
+**Flow**:
+1. Load plugins from `.dumbcoder/plugins/`
+2. Find plugin by name
+3. Search codebase (ripgrep + index)
+4. Build code context
+5. Call model with the plugin's `system_prompt`
+6. Output result
+
+## Prompt Template Overrides
+
+Override built-in command prompts in `.dumbcoder/config.toml`:
+
+```toml
+[prompts]
+ask = "You are a Rust expert. Answer questions with Rust idioms in mind."
+review = "You are a strict code reviewer focused on performance."
+```
+
+Supported keys: `ask`, `explain`, `review`, `test`, `patch`

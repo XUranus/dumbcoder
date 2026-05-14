@@ -5,6 +5,7 @@ mod context;
 mod git;
 mod index;
 mod model;
+mod plugin;
 mod security;
 mod tui;
 mod util;
@@ -75,6 +76,13 @@ enum Commands {
         /// Description of the fix
         description: String,
     },
+    /// Run a plugin command
+    Run {
+        /// Plugin name
+        name: String,
+        /// Task description / query
+        query: String,
+    },
     /// Enter interactive TUI mode
     Tui,
 }
@@ -92,6 +100,7 @@ async fn main() -> Result<()> {
         Commands::Test { path, symbol } => cmd::test::run(&path, symbol.as_deref()).await?,
         Commands::Review { staged, diff } => cmd::review::run(staged, diff.as_deref()).await?,
         Commands::Patch { description } => cmd::patch::run(&description).await?,
+        Commands::Run { name, query } => cmd::run::run(&name, &query).await?,
         Commands::Tui => cmd::tui::run().await?,
     }
 

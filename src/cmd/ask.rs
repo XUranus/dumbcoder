@@ -5,10 +5,11 @@ use crate::config::{Config, DUMBCODER_DIR};
 use crate::context::CodeContext;
 use crate::index::IndexStore;
 use crate::model::ModelClient;
+use crate::plugin;
 use crate::security::SecurityFilter;
 use crate::util;
 
-const SYSTEM_PROMPT: &str = r#"You are a helpful AI coding assistant. You answer questions about a codebase.
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a helpful AI coding assistant. You answer questions about a codebase.
 When answering:
 1. Reference specific files and line numbers when possible.
 2. Be concise and direct.
@@ -70,7 +71,8 @@ pub async fn run(question: &str) -> Result<()> {
         )
     };
 
-    let answer = client.generate(SYSTEM_PROMPT, &user_prompt).await?;
+    let system_prompt = plugin::resolve_prompt(&config, "ask", DEFAULT_SYSTEM_PROMPT);
+    let answer = client.generate(&system_prompt, &user_prompt).await?;
 
     // Step 4: Display answer
     util::header("Answer");

@@ -252,3 +252,44 @@ dumbcoder patch "为用户注册添加输入验证"
 - 应用后自动运行测试
 - 测试失败时自动回滚
 - 所有操作均记录审计日志
+
+## dumbcoder run
+
+运行在 `.dumbcoder/plugins/*.toml` 中定义的插件命令。
+
+```bash
+dumbcoder run security-audit "审计认证模块"
+dumbcoder run doc-gen "为订单服务生成文档"
+```
+
+**插件文件格式** (`.dumbcoder/plugins/<name>.toml`):
+
+```toml
+name = "security-audit"
+description = "审计代码中的安全漏洞"
+system_prompt = """
+你是一个安全审计员。分析代码上下文中的安全漏洞。
+重点关注：SQL 注入、XSS、路径遍历、认证绕过、代码中的密钥泄露。
+输出按严重等级（严重/高/中/低）分类的结构化报告。
+"""
+```
+
+**流程**:
+1. 从 `.dumbcoder/plugins/` 加载插件
+2. 按名称查找插件
+3. 搜索代码库（ripgrep + 索引）
+4. 组装代码上下文
+5. 使用插件的 `system_prompt` 调用模型
+6. 输出结果
+
+## Prompt 模板覆盖
+
+在 `.dumbcoder/config.toml` 中覆盖内置命令的 prompt：
+
+```toml
+[prompts]
+ask = "你是一个 Rust 专家。用 Rust 惯用法回答问题。"
+review = "你是一个严格的代码审查员，专注于性能。"
+```
+
+支持的键：`ask`、`explain`、`review`、`test`、`patch`

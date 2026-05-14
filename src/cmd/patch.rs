@@ -8,10 +8,11 @@ use crate::context::CodeContext;
 use crate::git;
 use crate::index::IndexStore;
 use crate::model::ModelClient;
+use crate::plugin;
 use crate::security::SecurityFilter;
 use crate::util;
 
-const SYSTEM_PROMPT: &str = r#"You are a code modification assistant. Given a description of a fix and relevant code context, generate a unified diff patch.
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a code modification assistant. Given a description of a fix and relevant code context, generate a unified diff patch.
 
 Rules:
 1. Output ONLY a valid unified diff (--- / +++ format with @@ hunks).
@@ -88,7 +89,8 @@ pub async fn run(description: &str) -> Result<()> {
         "Generate a patch for the following fix:\n\nDescription: {description}\n\nRelevant code:\n{context_text}"
     );
 
-    let response = client.generate(SYSTEM_PROMPT, &user_prompt).await?;
+    let system_prompt = plugin::resolve_prompt(&config, "patch", DEFAULT_SYSTEM_PROMPT);
+    let response = client.generate(&system_prompt, &user_prompt).await?;
 
     // Step 4: Extract diff from response
     let diff = extract_diff(&response);

@@ -1,13 +1,15 @@
 use std::process::Command;
 
+use crate::config::Config;
 use crate::context::CodeContext;
 use crate::index::IndexStore;
 use crate::model::ModelClient;
+use crate::plugin;
 use crate::security::SecurityFilter;
 
 use super::app::{App, AppAction, AppStatus, ModelResponse, Panel};
 
-const SYSTEM_PROMPT: &str = r#"You are a helpful AI coding assistant. You answer questions about a codebase.
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a helpful AI coding assistant. You answer questions about a codebase.
 When answering:
 1. Reference specific files and line numbers when possible.
 2. Be concise and direct.
@@ -17,6 +19,7 @@ When answering:
 pub async fn execute(
     action: AppAction,
     app: &mut App,
+    config: &Config,
     client: &ModelClient,
     root: &std::path::Path,
     security: &SecurityFilter,
@@ -81,7 +84,8 @@ pub async fn execute(
             // We need to handle the model call. Since we can't easily spawn async
             // with cross-thread communication in this simple setup, we'll do it inline
             // but the TUI will show "Thinking" status.
-            let result = client.generate(SYSTEM_PROMPT, &prompt).await;
+            let system_prompt = plugin::resolve_prompt(config, "ask", DEFAULT_SYSTEM_PROMPT);
+            let result = client.generate(&system_prompt, &prompt).await;
             let resp = result.map(|answer| ModelResponse {
                 answer,
                 context_files,

@@ -4,10 +4,11 @@ use std::path::Path;
 use crate::config::{Config, DUMBCODER_DIR};
 use crate::index::IndexStore;
 use crate::model::ModelClient;
+use crate::plugin;
 use crate::security::SecurityFilter;
 use crate::util;
 
-const SYSTEM_PROMPT: &str = r#"You are a helpful AI coding assistant. You explain code clearly and concisely.
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a helpful AI coding assistant. You explain code clearly and concisely.
 When explaining:
 1. Describe the purpose and responsibility of the code.
 2. Summarize inputs, outputs, and key logic.
@@ -90,7 +91,8 @@ pub async fn run(path: &str, symbol: Option<&str>) -> Result<()> {
         path, code_to_explain
     );
 
-    let explanation = client.generate(SYSTEM_PROMPT, &user_prompt).await?;
+    let system_prompt = plugin::resolve_prompt(&config, "explain", DEFAULT_SYSTEM_PROMPT);
+    let explanation = client.generate(&system_prompt, &user_prompt).await?;
 
     util::header("Explanation");
     println!("{explanation}");

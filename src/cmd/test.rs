@@ -5,10 +5,11 @@ use crate::config::{Config, DUMBCODER_DIR};
 use crate::git;
 use crate::index::IndexStore;
 use crate::model::ModelClient;
+use crate::plugin;
 use crate::security::SecurityFilter;
 use crate::util;
 
-const SYSTEM_PROMPT: &str = r#"You are a unit test generator. Given source code, generate comprehensive unit tests.
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a unit test generator. Given source code, generate comprehensive unit tests.
 Rules:
 1. Cover normal cases, edge cases, and error cases.
 2. Use the project's test framework and conventions.
@@ -80,7 +81,8 @@ pub async fn run(path: &str, symbol: Option<&str>) -> Result<()> {
     }
 
     let client = ModelClient::new(&config.model)?;
-    let tests = client.generate(SYSTEM_PROMPT, &user_prompt).await?;
+    let system_prompt = plugin::resolve_prompt(&config, "test", DEFAULT_SYSTEM_PROMPT);
+    let tests = client.generate(&system_prompt, &user_prompt).await?;
 
     util::header("Generated Tests");
     println!("{tests}");
