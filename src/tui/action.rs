@@ -10,7 +10,7 @@ use crate::session;
 use crate::tool;
 use tokio::sync::mpsc;
 
-use super::app::{App, AppAction, AppMode, AppStatus, ModelResponse};
+use super::app::{App, AppAction, AppMode, AppStatus};
 
 const TOOL_SYSTEM_PROMPT: &str = r#"You are a code assistant with access to tools. When you need to read files, write code, or run commands, use tool calls.
 
@@ -55,14 +55,15 @@ pub async fn execute(
     root: &std::path::Path,
     security: &SecurityFilter,
     store: &Option<IndexStore>,
-    model_tx: mpsc::Sender<anyhow::Result<ModelResponse>>,
+    model_tx: mpsc::Sender<anyhow::Result<String>>,
 ) {
     match action {
         AppAction::Send => {
             let input: String = app.input.drain(..).collect();
             app.input_cursor = 0;
+            app.completions.clear();
+            app.completion_active = false;
 
-            // Check for slash commands
             if input.starts_with('/') {
                 handle_slash_command(app, config, client, root, security, store, model_tx, &input).await;
                 return;
@@ -71,25 +72,18 @@ pub async fn execute(
             app.push_user_message(input.clone());
             app.status = AppStatus::Thinking;
 
-            // Prepare context (synchronous, fast)
+            // Build context (synchronous, fast)
             let search_query = extract_keywords(&input);
             let rg_output = Command::new("rg")
-                .arg("--line-number")
-                .arg("--color=never")
-                .arg("--max-count=10")
-                .arg("--context=2")
-                .arg(&search_query)
-                .arg(root)
+                .arg("--line-number").arg("--color=never")
+                .arg("--max-count=10").arg("--context=2")
+                .arg(&search_query).arg(root)
                 .output()
                 .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
                 .unwrap_or_default();
 
-            let mut context =
-                CodeContext::from_search_results(&rg_output, root, security, 10, 200)
-                    .unwrap_or_else(|_| CodeContext {
-                        matches: Vec::new(),
-                        file_contents: Vec::new(),
-                    });
+            let mut context = CodeContext::from_search_results(&rg_output, root, security, 10, 200)
+                .unwrap_or_else(|_| CodeContext { matches: Vec::new(), file_contents: Vec::new() });
 
             if let Some(ref idx) = store {
                 let keywords: Vec<String> = search_query.split('|').map(|s| s.to_string()).collect();
@@ -112,10 +106,6 @@ pub async fn execute(
             }
 
             let context_text = context.format_for_prompt(config.model.context_limit);
-            let context_files = context.file_contents.clone();
-            let context_symbols = store.as_ref().and_then(|idx| {
-                idx.search_symbols(&search_query, 10).ok()
-            }).unwrap_or_default();
 
             let system_prompt = if app.mode == AppMode::Plan {
                 plugin::resolve_prompt(config, "plan", PLAN_SYSTEM_PROMPT)
@@ -129,36 +119,23 @@ pub async fn execute(
                 format!("Task: {input}\n\nRelevant code context:\n{context_text}")
             };
 
+            // Auto-save session with user message
+            save_session(root, app);
+
             // Spawn async model call
             let client = client.clone();
             let root = root.to_path_buf();
             tokio::spawn(async move {
                 let result = run_tool_loop(&client, &system_prompt, &prompt, &root).await;
-                let _ = model_tx.send(result.map(|answer| ModelResponse {
-                    answer,
-                    context_files,
-                    context_symbols,
-                })).await;
+                let _ = model_tx.send(result).await;
             });
         }
 
         AppAction::Quit => {
-            // Auto-save session on quit
-            if !app.messages.is_empty() {
-                let mut sess = session::Session::new();
-                if let Some(ref id) = app.session_id {
-                    sess.id = id.clone();
-                }
-                sess.messages = app.messages.clone();
-                sess.plan = app.plan_content.clone();
-                sess.mode = format!("{:?}", app.mode).to_lowercase();
-                let _ = session::save_session(root, &sess);
-            }
+            save_session(root, app);
             app.running = false;
         }
 
-        AppAction::ScrollUp => app.scroll_up(),
-        AppAction::ScrollDown => app.scroll_down(),
         AppAction::ScrollPageUp => {
             for _ in 0..10 { app.scroll_up(); }
         }
@@ -170,7 +147,21 @@ pub async fn execute(
     }
 }
 
-/// Run tool-call loop in background. Executes tools and feeds results back to model.
+/// Save current session to disk. Public for use by mod.rs on exit.
+pub fn save_session(root: &std::path::Path, app: &App) {
+    if app.messages.is_empty() {
+        return;
+    }
+    let mut sess = session::Session::new();
+    sess.id = app.session_id.clone();
+    sess.messages = app.messages.clone();
+    sess.plan = app.plan_content.clone();
+    sess.mode = format!("{:?}", app.mode).to_lowercase();
+    if let Err(e) = session::save_session(root, &sess) {
+        eprintln!("Warning: failed to save session: {e}");
+    }
+}
+
 async fn run_tool_loop(
     client: &ModelClient,
     system_prompt: &str,
@@ -190,7 +181,6 @@ async fn run_tool_loop(
             break;
         }
 
-        // Execute tools
         let mut results = Vec::new();
         for call in &calls {
             results.push(tool::execute_tool(call, root));
@@ -214,7 +204,7 @@ async fn handle_slash_command(
     root: &std::path::Path,
     _security: &SecurityFilter,
     store: &Option<IndexStore>,
-    model_tx: mpsc::Sender<anyhow::Result<ModelResponse>>,
+    model_tx: mpsc::Sender<anyhow::Result<String>>,
     input: &str,
 ) {
     let parts: Vec<&str> = input.trim().splitn(3, ' ').collect();
@@ -226,29 +216,33 @@ async fn handle_slash_command(
         "/help" => {
             app.push_system_message(
                 "Commands:\n\
-                 /help             Show this help\n\
-                 /clear            Clear chat\n\
-                 /model            Show model config\n\
-                 /status           Project status (git + index)\n\
-                 /commit           Generate commit message\n\
-                 /plan             Enter PLAN mode\n\
-                 /approve          Execute current plan\n\
-                 /cancel           Exit PLAN mode\n\
-                 /session save [n] Save session\n\
-                 /session load [n] Load session\n\
-                 /session list     List sessions\n\
-                 /read <file>      Read file\n\
-                 /exec <cmd>       Run command",
+                 /help       Show this help\n\
+                 /clear      Clear chat\n\
+                 /model      Show model config\n\
+                 /status     Project status\n\
+                 /commit     Generate commit message\n\
+                 /plan       Enter PLAN mode\n\
+                 /approve    Execute plan\n\
+                 /cancel     Exit PLAN mode\n\
+                 /read FILE  Read file\n\
+                 /exec CMD   Run command\n\
+                 /exit       Save & exit",
             );
         }
 
         "/clear" => app.clear_chat(),
 
+        "/exit" => {
+            save_session(root, app);
+            app.running = false;
+        }
+
         "/model" => {
             let info = format!(
-                "Model: {} ({})\nURL: {}\nContext limit: {}\nTimeout: {}s",
+                "Model: {} ({})\nURL: {}\nContext limit: {}\nTimeout: {}s\nSession: {}",
                 config.model.model, config.model.provider, config.model.base_url,
                 config.model.context_limit, config.model.timeout_seconds.unwrap_or(120),
+                app.session_id,
             );
             app.push_system_message(&info);
         }
@@ -256,7 +250,12 @@ async fn handle_slash_command(
         "/status" => {
             let mut status = String::new();
             if let Ok(output) = Command::new("git").args(["status", "--short"]).current_dir(root).output() {
-                status.push_str(&format!("Git:\n{}\n", String::from_utf8_lossy(&output.stdout)));
+                let s = String::from_utf8_lossy(&output.stdout);
+                if s.is_empty() {
+                    status.push_str("Git: clean\n");
+                } else {
+                    status.push_str(&format!("Git:\n{s}\n"));
+                }
             }
             let db_path = root.join(crate::config::DUMBCODER_DIR).join("index").join("symbols.db");
             if let Ok(store) = IndexStore::open(&db_path) {
@@ -269,35 +268,27 @@ async fn handle_slash_command(
 
         "/commit" => {
             app.status = AppStatus::Thinking;
+            save_session(root, app);
             let diff = Command::new("git").args(["diff", "--cached"]).current_dir(root).output()
                 .map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
-
             if diff.is_empty() {
                 app.push_system_message("No staged changes. Use `git add` first.");
                 app.status = AppStatus::Ready;
                 return;
             }
-
             let client = client.clone();
-            let truncated_diff = if diff.len() > 5000 { diff[..5000].to_string() } else { diff };
+            let truncated = if diff.len() > 5000 { diff[..5000].to_string() } else { diff };
             tokio::spawn(async move {
-                let prompt = format!("Generate a concise git commit message for this diff:\n\n```diff\n{truncated_diff}\n```\n\nOutput ONLY the commit message.");
+                let prompt = format!("Generate a concise git commit message for this diff:\n\n```diff\n{truncated}\n```\n\nOutput ONLY the commit message.");
                 let result = client.generate("You are a git commit message generator. Output ONLY the commit message.", &prompt).await;
-                let _ = model_tx.send(result.map(|msg| ModelResponse {
-                    answer: format!("Suggested commit message:\n\n{msg}"),
-                    context_files: Vec::new(),
-                    context_symbols: Vec::new(),
-                })).await;
+                let _ = model_tx.send(result.map(|msg| format!("Suggested commit message:\n\n{msg}"))).await;
             });
         }
 
         "/plan" => {
             app.mode = AppMode::Plan;
             app.plan_content = None;
-            app.push_system_message(
-                "PLAN mode. Describe your task and I'll generate a plan.\n\
-                 /approve to execute | /cancel to exit",
-            );
+            app.push_system_message("PLAN mode. Describe your task.\n/approve to execute | /cancel to exit");
         }
 
         "/approve" => {
@@ -309,17 +300,14 @@ async fn handle_slash_command(
             let plan = app.plan_content.take().unwrap();
             app.push_system_message(&format!("Executing plan...\n\n{plan}"));
             app.status = AppStatus::Thinking;
+            save_session(root, app);
 
             let client = client.clone();
             let root = root.to_path_buf();
             tokio::spawn(async move {
-                let prompt = format!("Implement this plan step by step. Use tool calls to read/write files and run commands.\n\nPlan:\n{plan}");
+                let prompt = format!("Implement this plan. Use tool calls to read/write files and run commands.\n\nPlan:\n{plan}");
                 let result = run_tool_loop(&client, TOOL_SYSTEM_PROMPT, &prompt, &root).await;
-                let _ = model_tx.send(result.map(|answer| ModelResponse {
-                    answer,
-                    context_files: Vec::new(),
-                    context_symbols: Vec::new(),
-                })).await;
+                let _ = model_tx.send(result).await;
             });
         }
 
@@ -327,58 +315,6 @@ async fn handle_slash_command(
             app.mode = AppMode::Chat;
             app.plan_content = None;
             app.push_system_message("Exited PLAN mode.");
-        }
-
-        "/session" => {
-            match args {
-                "save" => {
-                    let name = if args2.is_empty() { None } else { Some(args2.to_string()) };
-                    let mut sess = session::Session::new();
-                    if let Some(ref id) = app.session_id { sess.id = id.clone(); }
-                    sess.name = name;
-                    sess.messages = app.messages.clone();
-                    sess.plan = app.plan_content.clone();
-                    sess.mode = format!("{:?}", app.mode).to_lowercase();
-                    match session::save_session(root, &sess) {
-                        Ok(()) => {
-                            app.session_id = Some(sess.id.clone());
-                            app.push_system_message(&format!("Session saved: {}", sess.id));
-                        }
-                        Err(e) => app.push_system_message(&format!("Error: {e}")),
-                    }
-                }
-                "load" => {
-                    if args2.is_empty() {
-                        app.push_system_message("Usage: /session load <id>");
-                        return;
-                    }
-                    match session::load_session(root, args2) {
-                        Ok(sess) => {
-                            app.messages = sess.messages.clone();
-                            app.plan_content = sess.plan.clone();
-                            app.session_id = Some(sess.id.clone());
-                            app.mode = if sess.mode == "plan" { AppMode::Plan } else { AppMode::Chat };
-                            app.scroll_chat = app.messages.len() as u16 * 3;
-                            app.push_system_message(&format!("Loaded: {} ({} msgs)", sess.id, app.messages.len()));
-                        }
-                        Err(e) => app.push_system_message(&format!("Error: {e}")),
-                    }
-                }
-                "list" => {
-                    match session::list_sessions(root) {
-                        Ok(sessions) if sessions.is_empty() => app.push_system_message("No sessions."),
-                        Ok(sessions) => {
-                            let mut msg = String::from("Sessions:\n");
-                            for s in &sessions {
-                                msg.push_str(&format!("  {} — {} msgs, {}\n", s.id, s.message_count, s.mode));
-                            }
-                            app.push_system_message(&msg);
-                        }
-                        Err(e) => app.push_system_message(&format!("Error: {e}")),
-                    }
-                }
-                _ => app.push_system_message("Usage: /session save|load|list [name]"),
-            }
         }
 
         "/read" => {
@@ -395,7 +331,7 @@ async fn handle_slash_command(
             match std::fs::read_to_string(&full_path) {
                 Ok(content) => {
                     let lines = content.lines().count();
-                    let truncated = if content.len() > 5000 { format!("{}...", &content[..5000]) } else { content };
+                    let truncated = if content.len() > 8000 { format!("{}...", &content[..8000]) } else { content };
                     app.push_system_message(&format!("{} ({} lines)\n\n{truncated}", full_path.display(), lines));
                 }
                 Err(e) => app.push_system_message(&format!("Error: {e}")),
@@ -422,7 +358,7 @@ async fn handle_slash_command(
         }
 
         _ => {
-            app.push_system_message(&format!("Unknown: {cmd}. Type /help"));
+            app.push_system_message(&format!("Unknown: {cmd}. /help for commands."));
         }
     }
 }

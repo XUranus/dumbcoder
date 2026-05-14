@@ -86,7 +86,11 @@ enum Commands {
         query: String,
     },
     /// Enter interactive TUI mode
-    Tui,
+    Tui {
+        /// Resume a previous session by ID
+        #[arg(long)]
+        resume: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -103,7 +107,7 @@ async fn main() -> Result<()> {
         Commands::Review { staged, diff } => cmd::review::run(staged, diff.as_deref()).await?,
         Commands::Patch { description } => cmd::patch::run(&description).await?,
         Commands::Run { name, query } => cmd::run::run(&name, &query).await?,
-        Commands::Tui => cmd::tui::run().await?,
+        Commands::Tui { resume } => cmd::tui::run(resume.as_deref()).await?,
     }
 
     Ok(())

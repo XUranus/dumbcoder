@@ -1,5 +1,3 @@
-use crate::context::FileContent;
-use crate::index::SymbolInfo;
 use crate::model::ChatMessage;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -19,8 +17,6 @@ pub enum AppMode {
 pub enum AppAction {
     Send,
     Quit,
-    ScrollUp,
-    ScrollDown,
     ScrollPageUp,
     ScrollPageDown,
     ClearChat,
@@ -30,13 +26,7 @@ pub enum AppAction {
 pub enum AppEvent {
     Tick,
     Key(KeyEvent),
-    ModelResult(anyhow::Result<ModelResponse>),
-}
-
-pub struct ModelResponse {
-    pub answer: String,
-    pub context_files: Vec<FileContent>,
-    pub context_symbols: Vec<SymbolInfo>,
+    ModelResult(anyhow::Result<String>),
 }
 
 pub struct App {
@@ -52,20 +42,21 @@ pub struct App {
     pub plan_content: Option<String>,
     pub history: Vec<String>,
     pub history_index: Option<usize>,
-    pub session_id: Option<String>,
+    pub session_id: String,
     pub completions: Vec<String>,
     pub completion_index: usize,
+    /// Whether the completion popup is active and arrows should select items
+    pub completion_active: bool,
 }
 
 const ALL_COMMANDS: &[&str] = &[
     "/help", "/clear", "/model", "/status", "/commit",
-    "/plan", "/approve", "/cancel",
-    "/session save", "/session load", "/session list",
+    "/plan", "/approve", "/cancel", "/exit",
     "/read ", "/exec ",
 ];
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(session_id: String) -> Self {
         Self {
             running: true,
             messages: Vec::new(),
@@ -79,18 +70,20 @@ impl App {
             plan_content: None,
             history: Vec::new(),
             history_index: None,
-            session_id: None,
+            session_id,
             completions: Vec::new(),
             completion_index: 0,
+            completion_active: false,
         }
     }
 
-    /// Update completions based on current input (prefix matching).
+    /// Update completions based on current input prefix.
     pub fn update_completions(&mut self) {
         self.completions.clear();
         self.completion_index = 0;
 
         if !self.input.starts_with('/') {
+            self.completion_active = false;
             return;
         }
 
@@ -99,6 +92,12 @@ impl App {
             if cmd.starts_with(&input_lower) && cmd != input_lower.as_str() {
                 self.completions.push(cmd.to_string());
             }
+        }
+
+        self.completion_active = !self.completions.is_empty();
+        // Clamp index
+        if self.completion_index >= self.completions.len() {
+            self.completion_index = 0;
         }
     }
 
@@ -113,23 +112,25 @@ impl App {
             return AppAction::ClearChat;
         }
 
-        // Esc: clear input, or quit if input empty
+        // Esc: dismiss completions, or clear input, or quit
         if key.code == KeyCode::Esc {
-            if self.input.is_empty() {
-                return AppAction::Quit;
+            if self.completion_active {
+                self.completion_active = false;
+                self.completions.clear();
+                return AppAction::None;
             }
-            self.input.clear();
-            self.input_cursor = 0;
-            self.completions.clear();
-            return AppAction::None;
+            if !self.input.is_empty() {
+                self.input.clear();
+                self.input_cursor = 0;
+                return AppAction::None;
+            }
+            return AppAction::Quit;
         }
 
-        // Tab: accept first completion
+        // Tab: accept current completion
         if key.code == KeyCode::Tab {
-            if !self.completions.is_empty() {
-                let idx = self.completion_index % self.completions.len();
-                let completed = &self.completions[idx];
-                // Add trailing space if command doesn't end with one
+            if self.completion_active && !self.completions.is_empty() {
+                let completed = &self.completions[self.completion_index];
                 let suffix = if completed.ends_with(' ') { "" } else { " " };
                 self.input = format!("{completed}{suffix}");
                 self.input_cursor = self.input.len();
@@ -138,12 +139,25 @@ impl App {
             return AppAction::None;
         }
 
-        // Shift+Tab: cycle completions backwards
-        if key.code == KeyCode::BackTab {
-            if !self.completions.is_empty() {
-                self.completion_index = self.completion_index.wrapping_add(self.completions.len() - 1) % self.completions.len();
+        // Up arrow
+        if key.code == KeyCode::Up {
+            // If completions active → cycle completion
+            if self.completion_active && !self.completions.is_empty() {
+                self.completion_index =
+                    (self.completion_index + self.completions.len() - 1) % self.completions.len();
+                return AppAction::None;
             }
-            return AppAction::None;
+            // Otherwise → history
+            return self.history_prev();
+        }
+
+        // Down arrow
+        if key.code == KeyCode::Down {
+            if self.completion_active && !self.completions.is_empty() {
+                self.completion_index = (self.completion_index + 1) % self.completions.len();
+                return AppAction::None;
+            }
+            return self.history_next();
         }
 
         // PgUp/PgDn: scroll chat
@@ -152,14 +166,6 @@ impl App {
         }
         if key.code == KeyCode::PageDown {
             return AppAction::ScrollPageDown;
-        }
-
-        // Up/Down: history navigation
-        if key.code == KeyCode::Up && self.status != AppStatus::Thinking {
-            return self.history_prev();
-        }
-        if key.code == KeyCode::Down && self.status != AppStatus::Thinking {
-            return self.history_next();
         }
 
         // Enter: send
@@ -209,7 +215,7 @@ impl App {
     pub fn push_user_message(&mut self, text: String) {
         if !text.is_empty() {
             self.history.push(text.clone());
-            if self.history.len() > 200 {
+            if self.history.len() > 500 {
                 self.history.remove(0);
             }
         }
@@ -218,16 +224,23 @@ impl App {
         self.auto_scroll();
     }
 
+    pub fn push_assistant_message(&mut self, text: String) {
+        self.messages.push(ChatMessage { role: "assistant".into(), content: text });
+        self.status = AppStatus::Ready;
+        self.spinner_frame = 0;
+        self.auto_scroll();
+    }
+
     pub fn push_system_message(&mut self, text: &str) {
         self.messages.push(ChatMessage { role: "system".into(), content: text.to_string() });
         self.auto_scroll();
     }
 
-    pub fn receive_model_response(&mut self, result: anyhow::Result<ModelResponse>) {
+    pub fn receive_model_response(&mut self, result: anyhow::Result<String>) {
         self.spinner_frame = 0;
         match result {
-            Ok(resp) => {
-                self.messages.push(ChatMessage { role: "assistant".into(), content: resp.answer });
+            Ok(answer) => {
+                self.messages.push(ChatMessage { role: "assistant".into(), content: answer });
                 self.status = AppStatus::Ready;
                 self.auto_scroll();
             }
@@ -248,13 +261,11 @@ impl App {
     }
 
     pub fn scroll_up(&mut self) {
-        if self.scroll_chat > 0 {
-            self.scroll_chat -= 1;
-        }
+        self.scroll_chat = self.scroll_chat.saturating_sub(5);
     }
 
     pub fn scroll_down(&mut self) {
-        self.scroll_chat += 1;
+        self.scroll_chat = self.scroll_chat.saturating_add(5);
     }
 
     pub fn tick_spinner(&mut self) {
@@ -263,9 +274,7 @@ impl App {
         }
     }
 
-    /// Auto-scroll to bottom when new messages arrive.
     fn auto_scroll(&mut self) {
-        // Set scroll to a very large value; the render function will clamp it.
         self.scroll_chat = u16::MAX;
     }
 
