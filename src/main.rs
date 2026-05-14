@@ -7,6 +7,8 @@ mod index;
 mod model;
 mod plugin;
 mod security;
+mod session;
+mod tool;
 mod tui;
 mod util;
 

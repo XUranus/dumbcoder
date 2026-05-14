@@ -83,7 +83,7 @@ struct OpenAiMessageContent {
 
 // --- Public ChatMessage (used by TUI) ---
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,

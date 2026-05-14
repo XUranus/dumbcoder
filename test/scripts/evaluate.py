@@ -123,6 +123,24 @@ TEST_CASES = [
         "category": "run",
         "eval_criteria": "Should identify security concerns: weak password hashing, missing input validation in API routes, session management issues.",
     },
+
+    # ── E2E multi-step coding ──
+    {
+        "id": "e2e_todo_module",
+        "command": "ask",
+        "args": ["Create a Python module src/utils/todo.py with a TodoItem dataclass (id: int, title: str, done: bool) and a TodoList class with methods: add(title) -> TodoItem, remove(item_id) -> bool, list_items() -> list, mark_done(item_id) -> bool. Use an in-memory list."],
+        "difficulty": "hard",
+        "category": "e2e_coding",
+        "eval_criteria": "Should generate a complete Python module with: TodoItem dataclass with id/title/done fields, TodoList class with all 4 required methods, proper error handling for missing items, type hints throughout.",
+    },
+    {
+        "id": "e2e_fix_email_validation",
+        "command": "ask",
+        "args": ["The validate_email regex in src/utils/validators.py is too strict. It rejects valid emails like user@sub.domain.com. Fix the regex to support subdomains properly while still rejecting invalid emails."],
+        "difficulty": "medium",
+        "category": "e2e_coding",
+        "eval_criteria": "Should identify the regex pattern issue and suggest a fix that supports subdomains (e.g., user@sub.domain.com). Should not break existing valid email detection.",
+    },
 ]
 
 

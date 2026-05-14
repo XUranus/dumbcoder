@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.11.0] - 2026-05-14
+
+### Added
+
+- **TUI 斜杠命令**: 交互式命令系统
+  - `/help` — 显示所有可用命令
+  - `/clear` — 清空对话
+  - `/model` — 显示当前模型配置
+  - `/status` — 显示项目状态（git + 索引统计）
+  - `/commit` — 从 staged diff 生成 commit message
+  - `/plan` — 进入 PLAN 模式
+  - `/approve` — 执行当前计划
+  - `/cancel` — 退出 PLAN 模式
+  - `/session save [name]` — 保存当前会话
+  - `/session load [name]` — 加载已保存的会话
+  - `/session list` — 列出所有会话
+  - `/read <file>` — 读取文件到上下文
+  - `/exec <cmd>` — 执行 shell 命令
+- **工具调用系统** (`src/tool.rs`): 模型可以调用工具
+  - `read_file` — 读取文件内容
+  - `write_file` — 写入文件
+  - `run_command` — 执行 shell 命令（白名单过滤）
+  - `search_code` — ripgrep 搜索
+  - `git_diff` / `git_status` — Git 操作
+  - 工具调用循环：模型输出 `tool` 代码块 → 执行 → 结果反馈 → 继续
+- **会话持久化** (`src/session.rs`): 保存/恢复对话历史
+  - `.dumbcoder/sessions/*.json` 存储会话数据
+  - TUI 退出时自动保存，启动时自动恢复最近会话
+- **PLAN 模式**: 先计划后执行的工作流
+  - `/plan` 进入 PLAN 模式，模型生成分步计划
+  - `/approve` 逐步骤执行计划
+  - `/cancel` 退出 PLAN 模式
+- **输入历史**: 上下箭头浏览历史输入
+- **系统消息**: TUI 中显示系统消息（工具输出、命令结果等）
+
+### E2E Test Cases
+
+- `e2e_todo_module` — 生成完整的 Todo 模块（dataclass + TodoList 类）
+- `e2e_fix_email_validation` — 修复 email 验证正则
+
 ## [0.10.0] - 2026-05-14
 
 ### Added

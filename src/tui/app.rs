@@ -16,6 +16,12 @@ pub enum AppStatus {
     Error,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum AppMode {
+    Chat,
+    Plan,
+}
+
 pub enum AppAction {
     Send,
     Quit,
@@ -53,6 +59,12 @@ pub struct App {
     pub active_panel: Panel,
     pub last_error: Option<String>,
     pub spinner_frame: usize,
+    // New fields
+    pub mode: AppMode,
+    pub plan_content: Option<String>,
+    pub history: Vec<String>,
+    pub history_index: Option<usize>,
+    pub session_id: Option<String>,
 }
 
 impl App {
@@ -70,6 +82,11 @@ impl App {
             active_panel: Panel::Chat,
             last_error: None,
             spinner_frame: 0,
+            mode: AppMode::Chat,
+            plan_content: None,
+            history: Vec::new(),
+            history_index: None,
+            session_id: None,
         }
     }
 
@@ -85,14 +102,22 @@ impl App {
             return AppAction::SwitchPanel;
         }
 
-        // Tab to switch panel
         if key.code == KeyCode::Tab {
             return AppAction::SwitchPanel;
         }
 
-        // Ctrl+L to clear chat
         if key.code == KeyCode::Char('l') && key.modifiers.contains(KeyModifiers::CONTROL) {
             return AppAction::ClearChat;
+        }
+
+        // Up/Down for history when input is active and chat panel
+        if self.active_panel == Panel::Chat && !self.history.is_empty() {
+            if key.code == KeyCode::Up && self.status != AppStatus::Thinking {
+                return self.history_prev();
+            }
+            if key.code == KeyCode::Down && self.status != AppStatus::Thinking {
+                return self.history_next();
+            }
         }
 
         // Scroll in context panel
@@ -151,10 +176,27 @@ impl App {
     }
 
     pub fn push_user_message(&mut self, text: String) {
+        // Save to history
+        if !text.is_empty() {
+            self.history.push(text.clone());
+            if self.history.len() > 100 {
+                self.history.remove(0);
+            }
+        }
+        self.history_index = None;
+
         self.messages.push(ChatMessage {
             role: "user".into(),
             content: text,
         });
+    }
+
+    pub fn push_system_message(&mut self, text: &str) {
+        self.messages.push(ChatMessage {
+            role: "system".into(),
+            content: text.to_string(),
+        });
+        self.scroll_chat = self.messages.len() as u16 * 3;
     }
 
     pub fn receive_model_response(&mut self, result: anyhow::Result<ModelResponse>) {
@@ -168,7 +210,6 @@ impl App {
                 self.context_files = resp.context_files;
                 self.context_symbols = resp.context_symbols;
                 self.status = AppStatus::Ready;
-                // Auto-scroll to bottom
                 self.scroll_chat = self.messages.len() as u16 * 3;
             }
             Err(e) => {
@@ -186,6 +227,8 @@ impl App {
         self.scroll_context = 0;
         self.last_error = None;
         self.status = AppStatus::Ready;
+        self.plan_content = None;
+        self.mode = AppMode::Chat;
     }
 
     pub fn scroll_chat_up(&mut self) {
@@ -212,5 +255,39 @@ impl App {
         if self.status == AppStatus::Thinking {
             self.spinner_frame = (self.spinner_frame + 1) % 4;
         }
+    }
+
+    fn history_prev(&mut self) -> AppAction {
+        if self.history.is_empty() {
+            return AppAction::None;
+        }
+        let idx = match self.history_index {
+            Some(i) => {
+                if i > 0 { i - 1 } else { 0 }
+            }
+            None => self.history.len() - 1,
+        };
+        self.history_index = Some(idx);
+        self.input = self.history[idx].clone();
+        self.input_cursor = self.input.len();
+        AppAction::None
+    }
+
+    fn history_next(&mut self) -> AppAction {
+        match self.history_index {
+            Some(i) if i < self.history.len() - 1 => {
+                let idx = i + 1;
+                self.history_index = Some(idx);
+                self.input = self.history[idx].clone();
+                self.input_cursor = self.input.len();
+            }
+            Some(_) => {
+                self.history_index = None;
+                self.input.clear();
+                self.input_cursor = 0;
+            }
+            None => {}
+        }
+        AppAction::None
     }
 }

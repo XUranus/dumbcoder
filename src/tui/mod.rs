@@ -17,8 +17,9 @@ use crate::config::{Config, DUMBCODER_DIR};
 use crate::index::IndexStore;
 use crate::model::ModelClient;
 use crate::security::SecurityFilter;
+use crate::session;
 
-use self::app::{App, AppEvent};
+use self::app::{App, AppMode, AppEvent};
 use self::event::EventHandler;
 
 pub async fn run() -> Result<()> {
@@ -41,8 +42,17 @@ pub async fn run() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Create app and run
+    // Create app and restore session
     let mut app = App::new();
+    if let Some(latest) = session::latest_session(&root) {
+        if !latest.messages.is_empty() {
+            app.messages = latest.messages;
+            app.session_id = Some(latest.id.clone());
+            app.plan_content = latest.plan;
+            app.mode = if latest.mode == "plan" { AppMode::Plan } else { AppMode::Chat };
+            app.scroll_chat = app.messages.len() as u16 * 3;
+        }
+    }
     let events = EventHandler::new(Duration::from_millis(50));
 
     let result = run_loop(&mut terminal, &mut app, &events, &config, &client, &root, &security, store).await;

@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use super::app::{App, AppStatus, Panel};
+use super::app::{App, AppMode, AppStatus, Panel};
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
@@ -51,16 +51,26 @@ fn draw_title_bar(frame: &mut Frame, area: Rect, app: &App) {
         AppStatus::Error => Style::default().fg(Color::Red),
     };
 
+    let mode_span = if app.mode == AppMode::Plan {
+        Span::styled(
+            " [PLAN] ",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )
+    } else {
+        Span::raw("")
+    };
+
     let title = Line::from(vec![
         Span::styled(
             " dumbcoder ",
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
         ),
+        mode_span,
         Span::raw("│ "),
         Span::styled(status_text, status_style),
-        Span::raw(format!(" │ {msg_count} messages │ ")),
+        Span::raw(format!(" │ {msg_count} msgs │ ")),
         Span::styled(
-            "Ctrl+C: quit | Tab: switch | Enter: send | Ctrl+L: clear",
+            "/help | Ctrl+C: quit | Tab: switch | Enter: send | ↑↓: history",
             Style::default().fg(Color::DarkGray),
         ),
     ]);
@@ -211,9 +221,11 @@ fn draw_input_bar(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let hint = if app.status == AppStatus::Thinking {
-        " (thinking...)"
+        " (thinking...)".to_string()
+    } else if app.mode == AppMode::Plan {
+        " [/approve] Execute plan | [/cancel] Exit".to_string()
     } else {
-        " [Enter] Send"
+        " [Enter] Send | /help".to_string()
     };
 
     let input_line = Line::from(vec![
