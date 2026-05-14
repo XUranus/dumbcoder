@@ -98,6 +98,11 @@ dumbcoder index --changed  # Incremental index (same as default)
 - Python (`.py`)
 - TypeScript/TSX (`.ts`, `.tsx`)
 - Java (`.java`)
+- C (`.c`, `.h`)
+- C++ (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx`)
+- JavaScript/JSX (`.js`, `.jsx`, `.mjs`)
+- Ruby (`.rb`, `.rake`)
+- Kotlin (`.kt`, `.kts`)
 
 ## Configuration
 

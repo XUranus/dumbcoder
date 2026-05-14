@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.0] - 2026-05-08
+
+### Added
+
+- **扩展语言索引支持**: 新增 5 种语言的 tree-sitter AST 解析
+  - C (`.c`, `.h`) — 提取函数、结构体、枚举、类型定义、include
+  - C++ (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx`) — 提取函数、类、结构体、枚举、命名空间、include
+  - JavaScript (`.js`, `.jsx`, `.mjs`) — 提取函数、方法、类、常量声明、import
+  - Ruby (`.rb`, `.rake`) — 提取方法、单例方法、类、模块
+  - Kotlin (`.kt`, `.kts`) — 提取函数、类、对象声明、属性、import
+
+### Dependencies Added
+
+- `tree-sitter-c` 0.24 — C 语法
+- `tree-sitter-cpp` 0.23 — C++ 语法
+- `tree-sitter-javascript` 0.25 — JavaScript 语法
+- `tree-sitter-ruby` 0.23 — Ruby 语法
+- `tree-sitter-kotlin-ng` 1.1 — Kotlin 语法
+
+### Documentation
+
+- 更新 `docs/commands.zh.md` — 新增支持的语言列表
+- 更新 `docs/commands.en.md` — Updated supported languages list
+
 ## [0.6.0] - 2026-05-08
 
 ### Added

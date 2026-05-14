@@ -98,6 +98,11 @@ dumbcoder index --changed  # 增量索引（同默认）
 - Python (`.py`)
 - TypeScript/TSX (`.ts`, `.tsx`)
 - Java (`.java`)
+- C (`.c`, `.h`)
+- C++ (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx`)
+- JavaScript/JSX (`.js`, `.jsx`, `.mjs`)
+- Ruby (`.rb`, `.rake`)
+- Kotlin (`.kt`, `.kts`)
 
 ## 配置文件
 

@@ -470,6 +470,11 @@ fn detect_language(path: &Path) -> Option<Language> {
         "py" => Some(Language::Python),
         "ts" | "tsx" => Some(Language::TypeScript),
         "java" => Some(Language::Java),
+        "c" | "h" => Some(Language::C),
+        "cpp" | "cc" | "cxx" | "hpp" | "hxx" => Some(Language::Cpp),
+        "js" | "jsx" | "mjs" => Some(Language::JavaScript),
+        "rb" | "rake" => Some(Language::Ruby),
+        "kt" | "kts" => Some(Language::Kotlin),
         _ => None,
     }
 }
@@ -481,6 +486,11 @@ enum Language {
     Python,
     TypeScript,
     Java,
+    C,
+    Cpp,
+    JavaScript,
+    Ruby,
+    Kotlin,
 }
 
 impl Language {
@@ -491,6 +501,11 @@ impl Language {
             Language::Python => "python",
             Language::TypeScript => "typescript",
             Language::Java => "java",
+            Language::C => "c",
+            Language::Cpp => "cpp",
+            Language::JavaScript => "javascript",
+            Language::Ruby => "ruby",
+            Language::Kotlin => "kotlin",
         }
     }
 }
@@ -514,6 +529,11 @@ fn parse_symbols(source: &str, language: Language) -> Result<Vec<ParsedSymbol>> 
         Language::Python => tree_sitter_python::LANGUAGE.into(),
         Language::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         Language::Java => tree_sitter_java::LANGUAGE.into(),
+        Language::C => tree_sitter_c::LANGUAGE.into(),
+        Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+        Language::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+        Language::Ruby => tree_sitter_ruby::LANGUAGE.into(),
+        Language::Kotlin => tree_sitter_kotlin_ng::LANGUAGE.into(),
     };
     parser.set_language(&lang)?;
 
@@ -622,6 +642,46 @@ fn node_kind_to_symbol(kind: &str, language: Language) -> Option<SymbolKind> {
             "import_declaration" => Some(SymbolKind::Import),
             _ => None,
         },
+        Language::C => match kind {
+            "function_definition" => Some(SymbolKind::Function),
+            "struct_specifier" => Some(SymbolKind::Struct),
+            "enum_specifier" => Some(SymbolKind::Enum),
+            "type_definition" => Some(SymbolKind::Struct),
+            "preproc_include" => Some(SymbolKind::Import),
+            _ => None,
+        },
+        Language::Cpp => match kind {
+            "function_definition" => Some(SymbolKind::Function),
+            "class_specifier" => Some(SymbolKind::Class),
+            "struct_specifier" => Some(SymbolKind::Struct),
+            "enum_specifier" => Some(SymbolKind::Enum),
+            "namespace_definition" => Some(SymbolKind::Impl),
+            "preproc_include" => Some(SymbolKind::Import),
+            _ => None,
+        },
+        Language::JavaScript => match kind {
+            "function_declaration" => Some(SymbolKind::Function),
+            "method_definition" => Some(SymbolKind::Method),
+            "class_declaration" => Some(SymbolKind::Class),
+            "lexical_declaration" => Some(SymbolKind::Constant),
+            "import_statement" => Some(SymbolKind::Import),
+            _ => None,
+        },
+        Language::Ruby => match kind {
+            "method" => Some(SymbolKind::Function),
+            "singleton_method" => Some(SymbolKind::Method),
+            "class" => Some(SymbolKind::Class),
+            "module" => Some(SymbolKind::Impl),
+            _ => None,
+        },
+        Language::Kotlin => match kind {
+            "function_declaration" => Some(SymbolKind::Function),
+            "class_declaration" => Some(SymbolKind::Class),
+            "object_declaration" => Some(SymbolKind::Class),
+            "property_declaration" => Some(SymbolKind::Constant),
+            "import_header" => Some(SymbolKind::Import),
+            _ => None,
+        },
     }
 }
 
@@ -637,6 +697,11 @@ fn extract_name(
         Language::Python => "name",
         Language::TypeScript => "name",
         Language::Java => "name",
+        Language::C => "name",
+        Language::Cpp => "name",
+        Language::JavaScript => "name",
+        Language::Ruby => "name",
+        Language::Kotlin => "name",
     };
 
     // For imports, use the whole text
