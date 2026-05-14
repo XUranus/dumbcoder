@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.6.0] - 2026-05-08
+
+### Added
+
+- **多模型支持**: 支持 Ollama、OpenAI API、OpenAI 兼容 API（vLLM、DeepSeek 等）
+  - `ModelClient` 使用 `Provider` 枚举分派到不同后端
+  - Ollama: 使用 `/api/chat` + `/api/generate` 回退（原有行为）
+  - OpenAI: 使用 `/v1/chat/completions`，支持 `Authorization: Bearer` 认证
+  - `openai_compatible`: 与 OpenAI 相同协议，适用于 vLLM、DeepSeek 等
+- **`ModelConfig` 新增字段**:
+  - `api_key: Option<String>` — API 密钥（OpenAI 必需，openai_compatible 可选）
+  - `timeout_seconds: Option<u64>` — 可配置超时时间（默认 120 秒）
+- **`ModelConfig::validate()`**: 启动时验证 provider 和配置一致性
+- 移除未使用的 `chat()` 方法（保留 `ChatMessage` 类型供 TUI 使用）
+
+### Multi-provider Support
+
+- Supports Ollama, OpenAI API, and OpenAI-compatible APIs (vLLM, DeepSeek, etc.)
+- New config fields: `api_key`, `timeout_seconds`
+- Provider validation on startup
+
 ## [0.5.0] - 2026-05-08
 
 ### Added

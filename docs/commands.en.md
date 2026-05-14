@@ -105,9 +105,11 @@ Configuration file at `.dumbcoder/config.toml`:
 
 ```toml
 [model]
-provider = "ollama"
+provider = "ollama"          # ollama | openai | openai_compatible
 base_url = "http://127.0.0.1:11434"
 model = "qwen2.5-coder:7b"
+# api_key = "sk-..."        # Required for openai, optional for openai_compatible
+# timeout_seconds = 120     # Request timeout (default: 120)
 
 [index]
 enabled = true
@@ -122,6 +124,33 @@ max_output_bytes = 20000
 
 [commands]
 allow = ["rg", "git status", "git diff", "git log", "git show"]
+```
+
+**Supported Providers**:
+
+| Provider | Description | Requires `api_key` |
+|----------|-------------|-------------------|
+| `ollama` | Local Ollama server (default) | No |
+| `openai` | OpenAI API (GPT-4o, etc.) | Yes |
+| `openai_compatible` | vLLM, DeepSeek, or any OpenAI-compatible API | Optional |
+
+**Example configs**:
+
+```toml
+# OpenAI
+[model]
+provider = "openai"
+base_url = "https://api.openai.com"
+model = "gpt-4o"
+api_key = "sk-..."
+timeout_seconds = 180
+
+# vLLM
+[model]
+provider = "openai_compatible"
+base_url = "http://10.0.0.5:8000"
+model = "Qwen/Qwen2.5-Coder-32B-Instruct"
+timeout_seconds = 300
 ```
 
 ## dumbcoder tui

@@ -25,6 +25,10 @@ pub struct ModelConfig {
     pub base_url: String,
     #[serde(default = "default_model")]
     pub model: String,
+    #[serde(default)]
+    pub api_key: Option<String>,
+    #[serde(default)]
+    pub timeout_seconds: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +76,27 @@ impl Default for ModelConfig {
             provider: default_provider(),
             base_url: default_base_url(),
             model: default_model(),
+            api_key: None,
+            timeout_seconds: None,
+        }
+    }
+}
+
+impl ModelConfig {
+    pub fn validate(&self) -> Result<()> {
+        match self.provider.as_str() {
+            "ollama" => Ok(()),
+            "openai" => {
+                if self.api_key.is_none() {
+                    anyhow::bail!("provider 'openai' requires api_key in [model] config");
+                }
+                Ok(())
+            }
+            "openai_compatible" => Ok(()),
+            other => anyhow::bail!(
+                "unknown provider '{}'. Supported: ollama, openai, openai_compatible",
+                other
+            ),
         }
     }
 }

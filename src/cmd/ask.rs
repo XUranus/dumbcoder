@@ -58,10 +58,10 @@ pub async fn run(question: &str) -> Result<()> {
     let context_text = context.format_for_prompt(8000);
 
     util::header("Asking model");
-    eprintln!("  Model: {} @ {}", config.model.model, config.model.base_url);
+    eprintln!("  Model: {} ({}) @ {}", config.model.model, config.model.provider, config.model.base_url);
 
     // Step 3: Call model
-    let client = ModelClient::new(&config.model);
+    let client = ModelClient::new(&config.model)?;
     let user_prompt = if context_text.is_empty() {
         format!("Question: {question}\n\nNo relevant code context was found in the repository.")
     } else {

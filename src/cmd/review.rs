@@ -79,7 +79,7 @@ pub async fn run(staged: bool, diff: Option<&str>) -> Result<()> {
     }
 
     util::header("Asking model");
-    eprintln!("  Model: {} @ {}", config.model.model, config.model.base_url);
+    eprintln!("  Model: {} ({}) @ {}", config.model.model, config.model.provider, config.model.base_url);
 
     let mut user_prompt = format!(
         "Review the following git diff ({diff_label}):\n\n```diff\n{}\n```",
@@ -92,7 +92,7 @@ pub async fn run(staged: bool, diff: Option<&str>) -> Result<()> {
         ));
     }
 
-    let client = ModelClient::new(&config.model);
+    let client = ModelClient::new(&config.model)?;
     let review = client.generate(SYSTEM_PROMPT, &user_prompt).await?;
 
     util::header("Review");

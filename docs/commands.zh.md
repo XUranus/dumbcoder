@@ -105,9 +105,11 @@ dumbcoder index --changed  # 增量索引（同默认）
 
 ```toml
 [model]
-provider = "ollama"
+provider = "ollama"          # ollama | openai | openai_compatible
 base_url = "http://127.0.0.1:11434"
 model = "qwen2.5-coder:7b"
+# api_key = "sk-..."        # openai 必需，openai_compatible 可选
+# timeout_seconds = 120     # 请求超时（默认 120 秒）
 
 [index]
 enabled = true
@@ -122,6 +124,33 @@ max_output_bytes = 20000
 
 [commands]
 allow = ["rg", "git status", "git diff", "git log", "git show"]
+```
+
+**支持的模型提供方**:
+
+| 提供方 | 说明 | 需要 `api_key` |
+|--------|------|----------------|
+| `ollama` | 本地 Ollama 服务（默认） | 否 |
+| `openai` | OpenAI API（GPT-4o 等） | 是 |
+| `openai_compatible` | vLLM、DeepSeek 或任何 OpenAI 兼容 API | 可选 |
+
+**配置示例**:
+
+```toml
+# OpenAI
+[model]
+provider = "openai"
+base_url = "https://api.openai.com"
+model = "gpt-4o"
+api_key = "sk-..."
+timeout_seconds = 180
+
+# vLLM
+[model]
+provider = "openai_compatible"
+base_url = "http://10.0.0.5:8000"
+model = "Qwen/Qwen2.5-Coder-32B-Instruct"
+timeout_seconds = 300
 ```
 
 ## dumbcoder tui

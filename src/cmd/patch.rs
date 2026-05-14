@@ -81,9 +81,9 @@ pub async fn run(description: &str) -> Result<()> {
 
     // Step 3: Generate diff
     util::header("Generating patch");
-    eprintln!("  Model: {} @ {}", config.model.model, config.model.base_url);
+    eprintln!("  Model: {} ({}) @ {}", config.model.model, config.model.provider, config.model.base_url);
 
-    let client = ModelClient::new(&config.model);
+    let client = ModelClient::new(&config.model)?;
     let user_prompt = format!(
         "Generate a patch for the following fix:\n\nDescription: {description}\n\nRelevant code:\n{context_text}"
     );

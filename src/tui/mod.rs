@@ -25,7 +25,7 @@ pub async fn run() -> Result<()> {
     let root = Config::find_project_root()?;
     let config = Config::load(&root)?;
     let security = SecurityFilter::new(config.index.ignore.clone());
-    let client = ModelClient::new(&config.model);
+    let client = ModelClient::new(&config.model)?;
 
     let db_path = root.join(DUMBCODER_DIR).join("index").join("symbols.db");
     let store = if db_path.exists() {

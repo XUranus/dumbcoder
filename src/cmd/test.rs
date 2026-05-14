@@ -66,7 +66,7 @@ pub async fn run(path: &str, symbol: Option<&str>) -> Result<()> {
     let existing_test = find_existing_test_file(&root, &full_path, &security);
 
     util::header("Asking model");
-    eprintln!("  Model: {} @ {}", config.model.model, config.model.base_url);
+    eprintln!("  Model: {} ({}) @ {}", config.model.model, config.model.provider, config.model.base_url);
     eprintln!("  Test framework: {test_framework}");
 
     let mut user_prompt = format!(
@@ -79,7 +79,7 @@ pub async fn run(path: &str, symbol: Option<&str>) -> Result<()> {
         ));
     }
 
-    let client = ModelClient::new(&config.model);
+    let client = ModelClient::new(&config.model)?;
     let tests = client.generate(SYSTEM_PROMPT, &user_prompt).await?;
 
     util::header("Generated Tests");
