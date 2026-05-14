@@ -1,18 +1,15 @@
 [model]
-provider = "ollama"
-base_url = "http://127.0.0.1:11434"
-model = "qwen2.5-coder:7b"
+provider = "openai_compatible"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode"
+model = "qwen3.6-plus"
+api_key = "sk-0bfe76db71b74da59ef1fa085586e6ba"
+timeout_seconds = 120
+context_limit = 4000
 
 [index]
 enabled = true
 db_path = ".dumbcoder/index"
-ignore = [
-    ".git",
-    "target",
-    "node_modules",
-    "dist",
-    "build",
-]
+ignore = [".git", "target", "node_modules", "dist", "build", ".dumbcoder"]
 
 [security]
 allow_write = false
@@ -21,10 +18,6 @@ max_command_seconds = 60
 max_output_bytes = 20000
 
 [commands]
-allow = [
-    "rg",
-    "git status",
-    "git diff",
-    "git log",
-    "git show",
-]
+allow = ["rg", "git status", "git diff", "git log", "git show"]
+
+[prompts]

@@ -9,13 +9,12 @@ use crate::plugin;
 use crate::security::SecurityFilter;
 use crate::util;
 
-const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a helpful AI coding assistant. You answer questions about a codebase.
-IMPORTANT: You MUST use the "Relevant code context" provided below to answer the question. Do NOT give generic answers.
-When answering:
-1. Reference specific file paths and line numbers from the context.
-2. Describe what the code actually does, based on the provided snippets.
-3. Be concise and direct.
-4. If the context does not contain enough information, say what you found and what is missing."#;
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a code assistant. Answer using ONLY the code snippets in the "Relevant code context" section below.
+RULES:
+- ONLY mention files and functions that appear in the provided context. Do NOT invent or hallucinate file names, function names, or line numbers.
+- Quote or reference the actual code from the context when explaining.
+- If the context contains relevant code, describe it in detail with file paths from the context.
+- If the context truly does not contain relevant code, say "The provided context does not contain relevant code" and list what files you see in the context."#;
 
 pub async fn run(question: &str) -> Result<()> {
     let root = Config::find_project_root()?;
@@ -33,9 +32,8 @@ pub async fn run(question: &str) -> Result<()> {
     let rg_output = Command::new("rg")
         .arg("--line-number")
         .arg("--color=never")
-        .arg("--max-count=10")
+        .arg("--max-count=20")
         .arg("--context=2")
-        .arg("--engine=auto")
         .arg(&search_query)
         .arg(&root)
         .output()
@@ -109,8 +107,10 @@ fn extract_keywords_vec(text: &str) -> Vec<String> {
         "and", "or", "to", "do", "does", "did", "can", "could", "would",
         "should", "will", "are", "was", "were", "been", "be", "have", "has",
         "had", "that", "this", "it", "its", "my", "your", "our", "their",
-        "i", "we", "you", "they", "he", "she", "吗", "呢", "什么", "哪里",
-        "怎么", "如何", "的", "了", "在", "是", "有", "和", "与",
+        "i", "we", "you", "they", "he", "she", "not", "no", "if", "but",
+        "with", "from", "by", "on", "at", "as", "so", "than", "very",
+        "user", "code", "file", "data", "use", "used", "using", "get", "set",
+        "吗", "呢", "什么", "哪里", "怎么", "如何", "的", "了", "在", "是", "有", "和", "与",
     ]
     .iter()
     .copied()
