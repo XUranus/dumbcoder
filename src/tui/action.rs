@@ -10,7 +10,7 @@ use crate::session;
 use crate::tool;
 use tokio::sync::mpsc;
 
-use super::app::{App, AppAction, AppMode, AppStatus, ModelResponse, Panel};
+use super::app::{App, AppAction, AppMode, AppStatus, ModelResponse};
 
 const TOOL_SYSTEM_PROMPT: &str = r#"You are a code assistant with access to tools. When you need to read files, write code, or run commands, use tool calls.
 
@@ -157,19 +157,13 @@ pub async fn execute(
             app.running = false;
         }
 
-        AppAction::ScrollUp => app.scroll_context_up(),
-        AppAction::ScrollDown => app.scroll_context_down(),
+        AppAction::ScrollUp => app.scroll_up(),
+        AppAction::ScrollDown => app.scroll_down(),
         AppAction::ScrollPageUp => {
-            for _ in 0..10 { app.scroll_context_up(); }
+            for _ in 0..10 { app.scroll_up(); }
         }
         AppAction::ScrollPageDown => {
-            for _ in 0..10 { app.scroll_context_down(); }
-        }
-        AppAction::SwitchPanel => {
-            app.active_panel = match app.active_panel {
-                Panel::Chat => Panel::Context,
-                Panel::Context => Panel::Chat,
-            };
+            for _ in 0..10 { app.scroll_down(); }
         }
         AppAction::ClearChat => app.clear_chat(),
         AppAction::None => {}
