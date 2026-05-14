@@ -32,6 +32,8 @@ pub struct ModelConfig {
     pub api_key: Option<String>,
     #[serde(default)]
     pub timeout_seconds: Option<u64>,
+    #[serde(default = "default_context_limit")]
+    pub context_limit: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +84,7 @@ impl Default for ModelConfig {
             model: default_model(),
             api_key: None,
             timeout_seconds: None,
+            context_limit: default_context_limit(),
         }
     }
 }
@@ -142,6 +145,9 @@ fn default_base_url() -> String {
 }
 fn default_model() -> String {
     "qwen2.5-coder:7b".into()
+}
+fn default_context_limit() -> usize {
+    8000
 }
 fn default_true() -> bool {
     true

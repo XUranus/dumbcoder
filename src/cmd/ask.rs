@@ -10,11 +10,12 @@ use crate::security::SecurityFilter;
 use crate::util;
 
 const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a helpful AI coding assistant. You answer questions about a codebase.
+IMPORTANT: You MUST use the "Relevant code context" provided below to answer the question. Do NOT give generic answers.
 When answering:
-1. Reference specific files and line numbers when possible.
-2. Be concise and direct.
-3. If you are unsure, say so.
-4. Focus on the code provided as context."#;
+1. Reference specific file paths and line numbers from the context.
+2. Describe what the code actually does, based on the provided snippets.
+3. Be concise and direct.
+4. If the context does not contain enough information, say what you found and what is missing."#;
 
 pub async fn run(question: &str) -> Result<()> {
     let root = Config::find_project_root()?;
@@ -25,7 +26,8 @@ pub async fn run(question: &str) -> Result<()> {
     util::header("Searching codebase");
 
     // Extract keywords from question for rg search
-    let search_query = extract_keywords(question);
+    let keywords = extract_keywords_vec(question);
+    let search_query = keywords.join("|");
     eprintln!("  Searching for: {search_query}");
 
     let rg_output = Command::new("rg")
@@ -33,6 +35,7 @@ pub async fn run(question: &str) -> Result<()> {
         .arg("--color=never")
         .arg("--max-count=10")
         .arg("--context=2")
+        .arg("--engine=auto")
         .arg(&search_query)
         .arg(&root)
         .output()
@@ -42,21 +45,30 @@ pub async fn run(question: &str) -> Result<()> {
     // Step 2: Build context from rg search
     let mut context = CodeContext::from_search_results(&rg_output, &root, &security, 10, 200)?;
 
-    // Step 2b: Query the index for matching symbols
+    // Step 2b: Query the index for matching symbols (per-keyword for better recall)
     let db_path = root.join(DUMBCODER_DIR).join("index").join("symbols.db");
     if db_path.exists() {
         if let Ok(store) = IndexStore::open(&db_path) {
-            if let Ok(symbols) = store.search_symbols(&search_query, 10) {
-                if !symbols.is_empty() {
-                    if let Ok(symbol_ctx) = CodeContext::from_symbols(&symbols, &root, &security, 4000) {
-                        context.merge(symbol_ctx);
+            let mut all_symbols = Vec::new();
+            let mut seen_names = std::collections::HashSet::new();
+            for kw in &keywords {
+                if let Ok(symbols) = store.search_symbols(kw, 5) {
+                    for sym in symbols {
+                        if seen_names.insert(sym.name.clone()) {
+                            all_symbols.push(sym);
+                        }
                     }
+                }
+            }
+            if !all_symbols.is_empty() {
+                if let Ok(symbol_ctx) = CodeContext::from_symbols(&all_symbols, &root, &security, 4000) {
+                    context.merge(symbol_ctx);
                 }
             }
         }
     }
 
-    let context_text = context.format_for_prompt(8000);
+    let context_text = context.format_for_prompt(config.model.context_limit);
 
     util::header("Asking model");
     eprintln!("  Model: {} ({}) @ {}", config.model.model, config.model.provider, config.model.base_url);
@@ -91,8 +103,7 @@ pub async fn run(question: &str) -> Result<()> {
     Ok(())
 }
 
-fn extract_keywords(question: &str) -> String {
-    // Simple keyword extraction: remove common words, keep meaningful terms
+fn extract_keywords_vec(text: &str) -> Vec<String> {
     let stop_words: std::collections::HashSet<&str> = [
         "what", "where", "how", "is", "the", "a", "an", "in", "of", "for",
         "and", "or", "to", "do", "does", "did", "can", "could", "would",
@@ -105,17 +116,16 @@ fn extract_keywords(question: &str) -> String {
     .copied()
     .collect();
 
-    let words: Vec<&str> = question
-        .split_whitespace()
-        .filter(|w| {
-            let clean = w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
-            !stop_words.contains(clean.as_str()) && clean.len() > 1
+    text.split_whitespace()
+        .filter_map(|w| {
+            let clean = w
+                .trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase();
+            if !stop_words.contains(clean.as_str()) && clean.len() > 1 {
+                Some(clean)
+            } else {
+                None
+            }
         })
-        .collect();
-
-    if words.is_empty() {
-        question.to_string()
-    } else {
-        words.join(" ")
-    }
+        .collect()
 }

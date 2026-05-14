@@ -39,7 +39,8 @@ pub async fn run(name: &str, query: &str) -> Result<()> {
 
     // Search codebase
     util::header("Searching codebase");
-    let search_query = extract_keywords(query);
+    let keywords = extract_keywords_vec(query);
+    let search_query = keywords.join("|");
     eprintln!("  Searching for: {search_query}");
 
     let rg_output = Command::new("rg")
@@ -59,19 +60,28 @@ pub async fn run(name: &str, query: &str) -> Result<()> {
     let db_path = root.join(DUMBCODER_DIR).join("index").join("symbols.db");
     if db_path.exists() {
         if let Ok(store) = IndexStore::open(&db_path) {
-            if let Ok(symbols) = store.search_symbols(&search_query, 10) {
-                if !symbols.is_empty() {
-                    if let Ok(sym_ctx) =
-                        CodeContext::from_symbols(&symbols, &root, &security, 4000)
-                    {
-                        context.merge(sym_ctx);
+            let mut all_symbols = Vec::new();
+            let mut seen_names = std::collections::HashSet::new();
+            for kw in &keywords {
+                if let Ok(symbols) = store.search_symbols(kw, 5) {
+                    for sym in symbols {
+                        if seen_names.insert(sym.name.clone()) {
+                            all_symbols.push(sym);
+                        }
                     }
+                }
+            }
+            if !all_symbols.is_empty() {
+                if let Ok(sym_ctx) =
+                    CodeContext::from_symbols(&all_symbols, &root, &security, 4000)
+                {
+                    context.merge(sym_ctx);
                 }
             }
         }
     }
 
-    let context_text = context.format_for_prompt(8000);
+    let context_text = context.format_for_prompt(config.model.context_limit);
 
     // Call model
     util::header("Running plugin");
@@ -97,7 +107,7 @@ pub async fn run(name: &str, query: &str) -> Result<()> {
     Ok(())
 }
 
-fn extract_keywords(text: &str) -> String {
+fn extract_keywords_vec(text: &str) -> Vec<String> {
     let stop_words: std::collections::HashSet<&str> = [
         "fix", "the", "a", "an", "in", "of", "for", "and", "or", "to",
         "when", "is", "it", "this", "that", "should", "would", "could",
@@ -109,19 +119,16 @@ fn extract_keywords(text: &str) -> String {
     .copied()
     .collect();
 
-    let words: Vec<&str> = text
-        .split_whitespace()
-        .filter(|w| {
+    text.split_whitespace()
+        .filter_map(|w| {
             let clean = w
                 .trim_matches(|c: char| !c.is_alphanumeric())
                 .to_lowercase();
-            !stop_words.contains(clean.as_str()) && clean.len() > 1
+            if !stop_words.contains(clean.as_str()) && clean.len() > 1 {
+                Some(clean)
+            } else {
+                None
+            }
         })
-        .collect();
-
-    if words.is_empty() {
-        text.to_string()
-    } else {
-        words.join(" ")
-    }
+        .collect()
 }

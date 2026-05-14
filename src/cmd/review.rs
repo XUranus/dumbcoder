@@ -10,11 +10,12 @@ use crate::plugin;
 use crate::security::SecurityFilter;
 use crate::util;
 
-const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a senior code reviewer. Analyze the following git diff and provide a structured review.
+const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a senior code reviewer. Analyze the git diff AND the surrounding code context for each changed file.
+IMPORTANT: Review the ACTUAL CODE in the changed files for security issues, bugs, and design problems — not just the diff lines themselves.
 
 For each changed file, provide:
 1. **Risk level**: Low / Medium / High
-2. **Issues found**: potential bugs, missing edge cases, logic errors, security concerns
+2. **Issues found**: potential bugs, missing edge cases, logic errors, security concerns in the file
 3. **Suggestions**: improvements, test coverage recommendations
 
 Format your review as:
@@ -26,7 +27,8 @@ Format your review as:
 - **Issues**: <list of issues>
 - **Suggestions**: <list of suggestions>
 
-Be specific with line numbers when possible. Focus on real issues, not style preferences."#;
+Be specific with line numbers when possible. Focus on real issues, not style preferences.
+Look for: weak cryptography, missing input validation, injection risks, error handling gaps, race conditions."#;
 
 pub async fn run(staged: bool, diff: Option<&str>) -> Result<()> {
     let root = Config::find_project_root()?;

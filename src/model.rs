@@ -4,6 +4,9 @@ use serde_json::json;
 
 use crate::config::ModelConfig;
 
+const MAX_RETRIES: u32 = 3;
+const BASE_BACKOFF_MS: u64 = 2000;
+
 #[derive(Debug, Clone)]
 enum Provider {
     Ollama,
@@ -108,6 +111,11 @@ impl ModelClient {
         }
     }
 
+    /// Check if an HTTP status is retryable (rate limit or server error).
+    fn is_retryable_status(status: reqwest::StatusCode) -> bool {
+        status == 429 || status.is_server_error()
+    }
+
     // --- Ollama ---
 
     async fn generate_ollama(&self, system: &str, prompt: &str) -> Result<String> {
@@ -131,20 +139,37 @@ impl ModelClient {
         });
 
         let url = format!("{}/api/chat", self.base_url);
-        let resp = self
-            .client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to connect to {}: {}", self.base_url, e))?;
 
-        if !resp.status().is_success() {
-            bail!("Ollama chat API error: {}", resp.status());
+        for attempt in 0..MAX_RETRIES {
+            let resp = self.client.post(&url).json(&body).send().await;
+
+            match resp {
+                Ok(r) if r.status().is_success() => {
+                    let chat_resp: OllamaChatResponse = r.json().await?;
+                    return Ok(chat_resp.message.content);
+                }
+                Ok(r) if Self::is_retryable_status(r.status()) => {
+                    let status = r.status();
+                    let wait = BASE_BACKOFF_MS * 2u64.pow(attempt);
+                    eprintln!("  Retry {}/{}: HTTP {status}, waiting {wait}ms...", attempt + 1, MAX_RETRIES);
+                    tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+                    continue;
+                }
+                Ok(r) => {
+                    bail!("Ollama chat API error: {}", r.status());
+                }
+                Err(e) => {
+                    if attempt < MAX_RETRIES - 1 {
+                        let wait = BASE_BACKOFF_MS * 2u64.pow(attempt);
+                        eprintln!("  Retry {}/{}: connection error, waiting {wait}ms...", attempt + 1, MAX_RETRIES);
+                        tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+                        continue;
+                    }
+                    return Err(anyhow::anyhow!("Failed to connect to {}: {}", self.base_url, e));
+                }
+            }
         }
-
-        let chat_resp: OllamaChatResponse = resp.json().await?;
-        Ok(chat_resp.message.content)
+        bail!("Max retries exceeded for Ollama chat API")
     }
 
     async fn call_ollama_generate(&self, system: &str, prompt: &str) -> Result<String> {
@@ -157,14 +182,37 @@ impl ModelClient {
         });
 
         let url = format!("{}/api/generate", self.base_url);
-        let resp = self.client.post(&url).json(&body).send().await?;
 
-        if !resp.status().is_success() {
-            bail!("Ollama generate API error: {}", resp.status());
+        for attempt in 0..MAX_RETRIES {
+            let resp = self.client.post(&url).json(&body).send().await;
+
+            match resp {
+                Ok(r) if r.status().is_success() => {
+                    let gen_resp: OllamaGenerateResponse = r.json().await?;
+                    return Ok(gen_resp.response);
+                }
+                Ok(r) if Self::is_retryable_status(r.status()) => {
+                    let status = r.status();
+                    let wait = BASE_BACKOFF_MS * 2u64.pow(attempt);
+                    eprintln!("  Retry {}/{}: HTTP {status}, waiting {wait}ms...", attempt + 1, MAX_RETRIES);
+                    tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+                    continue;
+                }
+                Ok(r) => {
+                    bail!("Ollama generate API error: {}", r.status());
+                }
+                Err(e) => {
+                    if attempt < MAX_RETRIES - 1 {
+                        let wait = BASE_BACKOFF_MS * 2u64.pow(attempt);
+                        eprintln!("  Retry {}/{}: connection error, waiting {wait}ms...", attempt + 1, MAX_RETRIES);
+                        tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+                        continue;
+                    }
+                    return Err(e).map_err(|e| anyhow::anyhow!("Failed to connect to {}: {}", self.base_url, e));
+                }
+            }
         }
-
-        let gen_resp: OllamaGenerateResponse = resp.json().await?;
-        Ok(gen_resp.response)
+        bail!("Max retries exceeded for Ollama generate API")
     }
 
     // --- OpenAI-compatible ---
@@ -187,27 +235,46 @@ impl ModelClient {
 
         let url = format!("{}/v1/chat/completions", self.base_url);
 
-        let mut req = self.client.post(&url).json(&body);
-        if let Some(key) = &self.api_key {
-            req = req.header("Authorization", format!("Bearer {key}"));
+        for attempt in 0..MAX_RETRIES {
+            let mut req = self.client.post(&url).json(&body);
+            if let Some(key) = &self.api_key {
+                req = req.header("Authorization", format!("Bearer {key}"));
+            }
+
+            let resp = req.send().await;
+
+            match resp {
+                Ok(r) if r.status().is_success() => {
+                    let openai_resp: OpenAiResponse = r.json().await?;
+                    return openai_resp
+                        .choices
+                        .first()
+                        .map(|c| c.message.content.clone())
+                        .ok_or_else(|| anyhow::anyhow!("No choices in API response"));
+                }
+                Ok(r) if Self::is_retryable_status(r.status()) => {
+                    let status = r.status();
+                    let wait = BASE_BACKOFF_MS * 2u64.pow(attempt);
+                    eprintln!("  Retry {}/{}: HTTP {status}, waiting {wait}ms...", attempt + 1, MAX_RETRIES);
+                    tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+                    continue;
+                }
+                Ok(r) => {
+                    let status = r.status();
+                    let body = r.text().await.unwrap_or_default();
+                    bail!("OpenAI-compatible API error {status}: {body}");
+                }
+                Err(e) => {
+                    if attempt < MAX_RETRIES - 1 {
+                        let wait = BASE_BACKOFF_MS * 2u64.pow(attempt);
+                        eprintln!("  Retry {}/{}: connection error, waiting {wait}ms...", attempt + 1, MAX_RETRIES);
+                        tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+                        continue;
+                    }
+                    return Err(anyhow::anyhow!("Failed to connect to {}: {}", self.base_url, e));
+                }
+            }
         }
-
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to connect to {}: {}", self.base_url, e))?;
-
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            bail!("OpenAI-compatible API error {status}: {body}");
-        }
-
-        let openai_resp: OpenAiResponse = resp.json().await?;
-        openai_resp
-            .choices
-            .first()
-            .map(|c| c.message.content.clone())
-            .ok_or_else(|| anyhow::anyhow!("No choices in API response"))
+        bail!("Max retries exceeded for OpenAI-compatible API")
     }
 }
