@@ -65,7 +65,15 @@ pub struct App {
     pub history: Vec<String>,
     pub history_index: Option<usize>,
     pub session_id: Option<String>,
+    pub completions: Vec<String>,
 }
+
+const ALL_COMMANDS: &[&str] = &[
+    "/help", "/clear", "/model", "/status", "/commit",
+    "/plan", "/approve", "/cancel",
+    "/session save", "/session load", "/session list",
+    "/read ", "/exec ",
+];
 
 impl App {
     pub fn new() -> Self {
@@ -87,6 +95,27 @@ impl App {
             history: Vec::new(),
             history_index: None,
             session_id: None,
+            completions: Vec::new(),
+        }
+    }
+
+    pub fn update_completions(&mut self) {
+        self.completions.clear();
+        if !self.input.starts_with('/') {
+            return;
+        }
+        let input_lower = self.input.to_lowercase();
+        for &cmd in ALL_COMMANDS {
+            if cmd.starts_with(input_lower.as_str()) || input_lower.starts_with(cmd) {
+                continue; // skip exact match
+            }
+            if cmd.contains(&input_lower) || cmd.starts_with(&input_lower) {
+                self.completions.push(cmd.to_string());
+            }
+        }
+        // If input is exactly "/" show all
+        if self.input == "/" {
+            self.completions = ALL_COMMANDS.iter().map(|s| s.to_string()).collect();
         }
     }
 
@@ -103,6 +132,13 @@ impl App {
         }
 
         if key.code == KeyCode::Tab {
+            // Tab completion for slash commands
+            if self.input.starts_with('/') && !self.completions.is_empty() {
+                self.input = self.completions[0].clone();
+                self.input_cursor = self.input.len();
+                self.update_completions();
+                return AppAction::None;
+            }
             return AppAction::SwitchPanel;
         }
 
@@ -172,6 +208,7 @@ impl App {
             _ => {}
         }
 
+        self.update_completions();
         AppAction::None
     }
 

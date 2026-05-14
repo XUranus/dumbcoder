@@ -9,29 +9,35 @@ use ratatui::{
 use super::app::{App, AppMode, AppStatus, Panel};
 
 pub fn draw(frame: &mut Frame, app: &App) {
+    let completion_height = if app.completions.is_empty() { 0 } else {
+        std::cmp::min(app.completions.len() as u16 + 1, 8)
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),   // Title bar
-            Constraint::Min(8),     // Main content
-            Constraint::Length(3),  // Input bar
+            Constraint::Length(3),                      // Title bar
+            Constraint::Min(8),                         // Main content
+            Constraint::Length(completion_height),       // Completions popup
+            Constraint::Length(3),                       // Input bar
         ])
         .split(frame.area());
 
     draw_title_bar(frame, chunks[0], app);
 
-    // Split main area into chat + context
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ])
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(chunks[1]);
 
     draw_chat_panel(frame, main_chunks[0], app);
     draw_context_panel(frame, main_chunks[1], app);
-    draw_input_bar(frame, chunks[2], app);
+
+    if !app.completions.is_empty() {
+        draw_completions(frame, chunks[2], app);
+    }
+
+    draw_input_bar(frame, chunks[3], app);
 }
 
 fn draw_title_bar(frame: &mut Frame, area: Rect, app: &App) {
@@ -239,5 +245,26 @@ fn draw_input_bar(frame: &mut Frame, area: Rect, app: &App) {
         .border_style(border_style);
 
     let paragraph = Paragraph::new(input_line).block(block);
+    frame.render_widget(paragraph, area);
+}
+
+fn draw_completions(frame: &mut Frame, area: Rect, app: &App) {
+    let lines: Vec<Line> = app
+        .completions
+        .iter()
+        .map(|cmd| {
+            Line::from(Span::styled(
+                format!("  {cmd}"),
+                Style::default().fg(Color::Cyan),
+            ))
+        })
+        .collect();
+
+    let block = Block::default()
+        .title(" Commands (Tab to complete) ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray));
+
+    let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
 }

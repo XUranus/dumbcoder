@@ -1,26 +1,42 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyEvent};
 use std::time::Duration;
+use tokio::sync::mpsc;
 
 use super::app::AppEvent;
 
 pub struct EventHandler {
     tick_rate: Duration,
+    model_rx: mpsc::Receiver<anyhow::Result<super::app::ModelResponse>>,
 }
 
 impl EventHandler {
-    pub fn new(tick_rate: Duration) -> Self {
-        Self { tick_rate }
+    pub fn new(
+        tick_rate: Duration,
+        model_rx: mpsc::Receiver<anyhow::Result<super::app::ModelResponse>>,
+    ) -> Self {
+        Self { tick_rate, model_rx }
     }
 
-    pub fn next(&self) -> Result<AppEvent> {
+    pub async fn next(&mut self) -> Result<AppEvent> {
+        // Check for model results first (non-blocking)
+        if let Ok(result) = self.model_rx.try_recv() {
+            return Ok(AppEvent::ModelResult(result));
+        }
+
+        // Poll for keyboard events with timeout
         if event::poll(self.tick_rate)? {
             match event::read()? {
-                Event::Key(key) => Ok(AppEvent::Key(key)),
-                _ => Ok(AppEvent::Tick),
+                Event::Key(key) => return Ok(AppEvent::Key(key)),
+                _ => {}
             }
-        } else {
-            Ok(AppEvent::Tick)
         }
+
+        // Check channel again after poll
+        if let Ok(result) = self.model_rx.try_recv() {
+            return Ok(AppEvent::ModelResult(result));
+        }
+
+        Ok(AppEvent::Tick)
     }
 }

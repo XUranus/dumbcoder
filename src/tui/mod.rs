@@ -12,6 +12,7 @@ use crossterm::{
 use ratatui::prelude::*;
 use std::io;
 use std::time::Duration;
+use tokio::sync::mpsc;
 
 use crate::config::{Config, DUMBCODER_DIR};
 use crate::index::IndexStore;
@@ -19,7 +20,7 @@ use crate::model::ModelClient;
 use crate::security::SecurityFilter;
 use crate::session;
 
-use self::app::{App, AppMode, AppEvent};
+use self::app::{App, AppEvent, AppMode, ModelResponse};
 use self::event::EventHandler;
 
 pub async fn run() -> Result<()> {
@@ -53,9 +54,12 @@ pub async fn run() -> Result<()> {
             app.scroll_chat = app.messages.len() as u16 * 3;
         }
     }
-    let events = EventHandler::new(Duration::from_millis(50));
 
-    let result = run_loop(&mut terminal, &mut app, &events, &config, &client, &root, &security, store).await;
+    // Channel for async model results
+    let (model_tx, model_rx) = mpsc::channel::<Result<ModelResponse>>(4);
+    let mut events = EventHandler::new(Duration::from_millis(50), model_rx);
+
+    let result = run_loop(&mut terminal, &mut app, &mut events, &config, &client, &root, &security, store, model_tx).await;
 
     // Restore terminal
     disable_raw_mode()?;
@@ -72,21 +76,24 @@ pub async fn run() -> Result<()> {
 async fn run_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
-    events: &EventHandler,
+    events: &mut EventHandler,
     config: &Config,
     client: &ModelClient,
     root: &std::path::Path,
     security: &SecurityFilter,
     store: Option<IndexStore>,
+    model_tx: mpsc::Sender<Result<ModelResponse>>,
 ) -> Result<()> {
     loop {
         terminal.draw(|frame| ui::draw(frame, app))?;
 
-        match events.next()? {
-            AppEvent::Tick => {}
+        match events.next().await? {
+            AppEvent::Tick => {
+                app.tick_spinner();
+            }
             AppEvent::Key(key) => {
                 let action = app.handle_key_event(key);
-                action::execute(action, app, config, client, root, security, &store).await;
+                action::execute(action, app, config, client, root, security, &store, model_tx.clone()).await;
             }
             AppEvent::ModelResult(result) => {
                 app.receive_model_response(result);
