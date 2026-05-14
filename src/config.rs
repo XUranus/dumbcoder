@@ -193,19 +193,58 @@ fn default_allowed_commands() -> Vec<String> {
     ]
 }
 
+/// Returns the global config directory: ~/.config/dumbcoder/
+pub fn global_config_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".config").join("dumbcoder"))
+}
+
+/// Returns the global config file path: ~/.config/dumbcoder/config.toml
+fn global_config_path() -> Option<PathBuf> {
+    global_config_dir().map(|d| d.join(CONFIG_FILE))
+}
+
 impl Config {
-    /// Load config from the given directory, or use current directory.
+    /// Load config with global → project merge strategy.
+    ///
+    /// 1. Load global config from ~/.config/dumbcoder/config.toml (if exists)
+    /// 2. Load project config from <root>/.dumbcoder/config.toml (if exists)
+    /// 3. Merge: project values override global values for explicitly set fields
     pub fn load(project_root: &Path) -> Result<Self> {
-        let config_path = project_root.join(DUMBCODER_DIR).join(CONFIG_FILE);
-        if config_path.exists() {
-            let content =
-                std::fs::read_to_string(&config_path).context("Failed to read config file")?;
-            let config: Config =
-                toml::from_str(&content).context("Failed to parse config file")?;
-            Ok(config)
+        let global_path = global_config_path();
+        let project_path = project_root.join(DUMBCODER_DIR).join(CONFIG_FILE);
+
+        let global_val = global_path
+            .as_ref()
+            .filter(|p| p.exists())
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .and_then(|s| toml::from_str::<toml::Value>(&s).ok());
+
+        let project_val = if project_path.exists() {
+            let content = std::fs::read_to_string(&project_path)
+                .context("Failed to read project config file")?;
+            Some(
+                toml::from_str::<toml::Value>(&content)
+                    .context("Failed to parse project config file")?,
+            )
         } else {
-            Ok(Config::default())
-        }
+            None
+        };
+
+        // Merge: project overrides global
+        let merged = match (global_val, project_val) {
+            (Some(mut global), Some(project)) => {
+                merge_toml(&mut global, &project);
+                global
+            }
+            (Some(global), None) => global,
+            (None, Some(project)) => project,
+            (None, None) => return Ok(Config::default()),
+        };
+
+        let config: Config = merged
+            .try_into()
+            .context("Failed to parse merged config")?;
+        Ok(config)
     }
 
     /// Save config to the given directory.
@@ -219,15 +258,41 @@ impl Config {
     }
 
     /// Find project root by looking for .dumbcoder directory or git repo.
-    pub fn find_project_root() -> Result<PathBuf> {
-        let mut dir = std::env::current_dir()?;
+    /// Returns (root, is_project_root) — if false, no .dumbcoder/ found and
+    /// caller should rely on global config.
+    pub fn find_project_root() -> Result<(PathBuf, bool)> {
+        let cwd = std::env::current_dir()?;
+        let mut dir = cwd.clone();
         loop {
-            if dir.join(DUMBCODER_DIR).is_dir() || dir.join(".git").is_dir() {
-                return Ok(dir);
+            if dir.join(DUMBCODER_DIR).is_dir() {
+                return Ok((dir, true));
+            }
+            if dir.join(".git").is_dir() {
+                return Ok((dir, true));
             }
             if !dir.pop() {
-                return std::env::current_dir().context("Cannot determine project root");
+                // No .dumbcoder or .git found — use cwd with global config
+                return Ok((cwd, false));
             }
+        }
+    }
+}
+
+/// Recursively merge `other` into `base`. For tables, merge keys.
+/// For non-table values, `other` overrides `base`.
+fn merge_toml(base: &mut toml::Value, other: &toml::Value) {
+    match (base, other) {
+        (toml::Value::Table(base_map), toml::Value::Table(other_map)) => {
+            for (key, other_val) in other_map {
+                if let Some(base_val) = base_map.get_mut(key) {
+                    merge_toml(base_val, other_val);
+                } else {
+                    base_map.insert(key.clone(), other_val.clone());
+                }
+            }
+        }
+        (base, other) => {
+            *base = other.clone();
         }
     }
 }

@@ -16,7 +16,7 @@ When explaining:
 4. Use clear, structured formatting."#;
 
 pub async fn run(path: &str, symbol: Option<&str>) -> Result<()> {
-    let root = Config::find_project_root()?;
+    let (root, _is_project) = Config::find_project_root()?;
     let config = Config::load(&root)?;
     let security = SecurityFilter::new(config.index.ignore.clone());
 

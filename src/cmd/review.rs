@@ -31,7 +31,7 @@ Be specific with line numbers when possible. Focus on real issues, not style pre
 Look for: weak cryptography, missing input validation, injection risks, error handling gaps, race conditions."#;
 
 pub async fn run(staged: bool, diff: Option<&str>) -> Result<()> {
-    let root = Config::find_project_root()?;
+    let (root, _is_project) = Config::find_project_root()?;
     let config = Config::load(&root)?;
     let security = SecurityFilter::new(config.index.ignore.clone());
 

@@ -6,7 +6,7 @@ use crate::security::SecurityFilter;
 use crate::util;
 
 pub fn run(full: bool, changed: bool) -> Result<()> {
-    let root = Config::find_project_root()?;
+    let (root, _is_project) = Config::find_project_root()?;
     let config = Config::load(&root)?;
     let security = SecurityFilter::new(config.index.ignore.clone());
 

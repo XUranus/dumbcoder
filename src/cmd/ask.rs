@@ -17,7 +17,7 @@ RULES:
 - If the context truly does not contain relevant code, say "The provided context does not contain relevant code" and list what files you see in the context."#;
 
 pub async fn run(question: &str) -> Result<()> {
-    let root = Config::find_project_root()?;
+    let (root, _is_project) = Config::find_project_root()?;
     let config = Config::load(&root)?;
     let security = SecurityFilter::new(config.index.ignore.clone());
 

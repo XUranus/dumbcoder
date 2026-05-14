@@ -29,3 +29,4 @@ tree-sitter-kotlin-ng = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 ratatui = "0.29"
 crossterm = "0.28"
+dirs = "6.0.0"

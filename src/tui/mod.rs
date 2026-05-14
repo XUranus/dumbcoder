@@ -24,7 +24,7 @@ use self::app::{App, AppEvent, AppMode, ModelResponse};
 use self::event::EventHandler;
 
 pub async fn run() -> Result<()> {
-    let root = Config::find_project_root()?;
+    let (root, _is_project) = Config::find_project_root()?;
     let config = Config::load(&root)?;
     let security = SecurityFilter::new(config.index.ignore.clone());
     let client = ModelClient::new(&config.model)?;
